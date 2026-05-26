@@ -627,36 +627,6 @@
         setTimeout(() => observer.disconnect(), 15000);
     }
 
-    // 监听 URL 变化，采用国际通用的 History API 拦截方案，遇到单页跳转时刷新页面以重置脚本状态
-    function setupSPARouter() {
-        let lastUrl = location.href;
-        
-        const checkUrlChange = () => {
-            setTimeout(() => {
-                if (location.href !== lastUrl) {
-                    const isVideoPage = location.href.includes('/video/') || location.href.includes('/bangumi/play/');
-                    lastUrl = location.href;
-                    if (isVideoPage) {
-                        location.reload();
-                    }
-                }
-            }, 100);
-        };
-
-        const originalPushState = history.pushState;
-        history.pushState = function() {
-            originalPushState.apply(this, arguments);
-            checkUrlChange();
-        };
-
-        const originalReplaceState = history.replaceState;
-        history.replaceState = function() {
-            originalReplaceState.apply(this, arguments);
-            checkUrlChange();
-        };
-
-        window.addEventListener('popstate', checkUrlChange);
-    }
 
     function initSubtitleObserver() {
         let timeoutId;
@@ -683,7 +653,6 @@
 
         createAIPanel();
         initSubtitleObserver();
-        setupSPARouter();
         console.log(`%c 🎬 B站字幕与AI助手 v${version} %c Cost ${Math.round(performance.now() - startTime)}ms`, "background:#4A90E2;color:white;padding:2px 6px;border-radius:3px 0 0 3px;", "background:#50E3C2;color:#003333;padding:2px 6px;border-radius:0 3px 3px 0;");
     }
 
