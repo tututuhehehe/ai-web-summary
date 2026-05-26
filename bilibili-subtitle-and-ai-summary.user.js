@@ -95,7 +95,7 @@
             .chat-bubble.system { background: transparent; color: #888; align-self: center; font-size: 12px; text-align: center; }
 
             /* Markdown 样式适配 */
-            .chat-bubble.assistant h1, .chat-bubble.assistant h2, .chat-bubble.assistant h3 { color: #fff; margin-top: 0; margin-bottom: 8px; font-size: 15px; }
+            .chat-bubble.assistant h1, .chat-bubble.assistant h2, .chat-bubble.assistant h3, .chat-bubble.assistant h4, .chat-bubble.assistant h5, .chat-bubble.assistant h6 { color: #fff; margin-top: 0; margin-bottom: 8px; font-size: 15px; }
             .chat-bubble.assistant p { margin: 0 0 8px 0; }
             .chat-bubble.assistant p:last-child { margin: 0; }
             .chat-bubble.assistant ul, .chat-bubble.assistant ol { margin: 0 0 8px 0; padding-left: 20px; }
