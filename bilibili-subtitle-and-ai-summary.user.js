@@ -45,7 +45,9 @@
     let isRequesting = false;
 
     function addGlobalStyles() {
+        if (document.getElementById('bili-ai-style')) return;
         const style = document.createElement('style');
+        style.id = 'bili-ai-style';
         style.textContent = `
             .bilibili-subtitle-infobar {
                 position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -146,7 +148,7 @@
         return [...new Set(r)].filter(url => url && (url.includes('subtitle') || url.includes('ai_subtitle')) && url.includes('auth_key'));
     }
     function getSubtitleBody(d){if(d&&d.body)return d.body;if(d&&d.data&&d.data.body)return d.data.body;throw new Error('无法解析字幕数据');}
-    function fetchSubtitleText(){return new Promise((res,rej)=>{const u=getSubtitleUrls();if(u.length===0)return rej(new Error('未找到字幕'));let url = u[u.length - 1];if(url.startsWith('//'))url='https:'+url;window.fetch(url).then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();}).then(d=>res(getSubtitleBody(d).map(i=>i.content).join('\n'))).catch(rej);});}
+    function fetchSubtitleText(){return new Promise((res,rej)=>{const u=getSubtitleUrls();if(u.length===0)return rej(new Error('未找到字幕'));const zhUrl=u.find(url=>/(zh|cn|hans)/i.test(url));let url=zhUrl||u[u.length-1];if(url.startsWith('//'))url='https:'+url;window.fetch(url).then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();}).then(d=>res(getSubtitleBody(d).map(i=>i.content).join('\n'))).catch(rej);});}
     function handleCopySubtitle(){showInfoBar('正在提取...','info',0);fetchSubtitleText().then(t=>{document.querySelector('.bilibili-subtitle-infobar.info')?.remove();GM_setClipboard(t,'text');showInfoBar('✅ 已复制！','success',2500);}).catch(e=>{document.querySelector('.bilibili-subtitle-infobar.info')?.remove();showInfoBar('提取失败: '+e.message,'error');});}
 
     function requestAIStream(messages, onChunk, onComplete, onError) {
@@ -595,8 +597,17 @@
         actionCallback();
     }
 
-    function createDownloadInterface(subtitlePanel) {
-        function addButtons() {
+    function createGlobalObserver() {
+        const observer = new MutationObserver((mutations) => {
+            let shouldCheck = false;
+            for (const mutation of mutations) {
+                if (mutation.addedNodes.length > 0) {
+                    shouldCheck = true;
+                    break;
+                }
+            }
+            if (!shouldCheck) return;
+
             const subtitleItems = document.querySelectorAll('.bpx-player-ctrl-subtitle-language-item');
             if (subtitleItems.length === 0) return;
 
@@ -619,40 +630,63 @@
                 actionsContainer.appendChild(copyBtn);
                 item.appendChild(actionsContainer);
             });
-        }
-
-        addButtons();
-        const observer = new MutationObserver(addButtons);
-        observer.observe(subtitlePanel, { childList: true, subtree: true });
-        setTimeout(() => observer.disconnect(), 15000);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 
+    function setupSPARouting() {
+        const s = document.createElement('script');
+        s.textContent = `(function() {
+            const originalPushState = history.pushState;
+            history.pushState = function() {
+                originalPushState.apply(this, arguments);
+                window.dispatchEvent(new Event('bili_ai_url_change'));
+            };
+            const originalReplaceState = history.replaceState;
+            history.replaceState = function() {
+                originalReplaceState.apply(this, arguments);
+                window.dispatchEvent(new Event('bili_ai_url_change'));
+            };
+            window.addEventListener('popstate', () => window.dispatchEvent(new Event('bili_ai_url_change')));
+        })();`;
+        (document.head || document.documentElement).appendChild(s);
+        s.remove();
 
-    function initSubtitleObserver() {
-        let timeoutId;
-        const checkInterval = setInterval(() => {
-            const subtitlePanel = document.querySelector('.bpx-player-ctrl-subtitle-menu-left') ||
-                                document.querySelector('.bpx-player-ctrl-subtitle-menu-origin') ||
-                                document.querySelector('.bpx-player-ctrl-subtitle-language-item');
-            if (subtitlePanel) {
-                clearInterval(checkInterval);
-                clearTimeout(timeoutId);
-                const actualPanel = subtitlePanel.closest('.bpx-player-ctrl-subtitle-menu-left') ||
-                                  subtitlePanel.closest('.bpx-player-ctrl-subtitle-menu-origin') ||
-                                  subtitlePanel.parentElement;
-                createDownloadInterface(actualPanel);
-            }
-        }, 500);
-
-        timeoutId = setTimeout(() => clearInterval(checkInterval), 30000);
+        let lastUrl = location.href;
+        window.addEventListener('bili_ai_url_change', () => {
+            setTimeout(() => { // slight delay to let URL update
+                if (location.href !== lastUrl) {
+                    lastUrl = location.href;
+                    if (location.href.includes('/video/') || location.href.includes('/bangumi/play/')) {
+                        // Reset cache
+                        if (typeof unsafeWindow !== 'undefined' && unsafeWindow._biliSubtitleUrls) unsafeWindow._biliSubtitleUrls = [];
+                        window._biliSubtitleUrls = [];
+                        cachedScriptSubtitleUrls = null;
+                        
+                        // Reset state
+                        currentSubtitle = "";
+                        chatHistory = [];
+                        
+                        // Reset UI
+                        const chatContainer = document.getElementById('ai-panel-chat');
+                        if (chatContainer) {
+                            chatContainer.innerHTML = '<div class="chat-bubble system">准备就绪。</div>';
+                            chatContainer.scrollTop = 0;
+                        }
+                        updateChatSendButtonState();
+                    }
+                }
+            }, 50);
+        });
     }
 
     function init() {
         addGlobalStyles();
         setupNetworkInterception();
+        setupSPARouting();
 
         createAIPanel();
-        initSubtitleObserver();
+        createGlobalObserver();
         console.log(`%c 🎬 B站字幕与AI助手 v${version} %c Cost ${Math.round(performance.now() - startTime)}ms`, "background:#4A90E2;color:white;padding:2px 6px;border-radius:3px 0 0 3px;", "background:#50E3C2;color:#003333;padding:2px 6px;border-radius:0 3px 3px 0;");
     }
 
