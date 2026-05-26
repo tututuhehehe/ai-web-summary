@@ -10,7 +10,6 @@
 - 文件名：`bilibili-subtitle-and-ai-summary.user.js`
 - 脚本名：B站字幕获取与AI助手 (沉浸式翻译/总结)
 - 适用页面：`*://*.bilibili.com/video/*`、`*://*.bilibili.com/bangumi/play/*`
-- 当前版本：`1.1.1`
 - 依赖：通过 `@require` 引入 `marked.js`
 - 许可证：MIT
 
