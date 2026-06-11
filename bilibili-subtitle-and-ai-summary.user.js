@@ -90,6 +90,7 @@
         bubble.innerHTML +=
           '<div style="color:#888;font-size:12px;margin-top:6px;">⛔ 已终止生成</div>';
       }
+      attachRegenButton(bubble); // 被终止的回答也可重新生成
     }
     activeAssistantBubble = null;
     updateChatSendButtonState();
@@ -180,6 +181,14 @@
             .ai-chat-send:disabled { background: #444; color: #888; cursor: not-allowed; }
             .ai-chat-send.ai-chat-stop { background: #d9363e; font-size: 18px; padding: 0 14px; }
             .ai-chat-send.ai-chat-stop:hover { background: #f5222d; }
+
+            .ai-regen-btn {
+                display: inline-flex; align-items: center; gap: 4px; margin-top: 10px;
+                padding: 4px 10px; font-size: 12px; cursor: pointer;
+                background: #2f2f33; color: #9bb; border: 1px solid #444; border-radius: 6px;
+                transition: background 0.2s, color 0.2s;
+            }
+            .ai-regen-btn:hover { background: #00a1d6; color: #fff; border-color: #00a1d6; }
 
             .ai-panel-settings {
                 position: absolute; top: 53px; left: 12px; right: 12px;
@@ -639,6 +648,41 @@
     return bubble;
   }
 
+  // 在 AI 气泡末尾附加「重新生成」按钮（避免重复添加）
+  function attachRegenButton(bubble) {
+    if (!bubble) return;
+    // 只保留最后一条 AI 回答的重新生成按钮，清除其他气泡上的旧按钮
+    const chatContainer = document.getElementById("ai-panel-chat");
+    if (chatContainer) {
+      chatContainer
+        .querySelectorAll(".ai-regen-btn")
+        .forEach((el) => el.remove());
+    }
+    const btn = document.createElement("button");
+    btn.className = "ai-regen-btn";
+    btn.innerHTML = "🔄 重新生成";
+    btn.addEventListener("click", () => regenerateLast(bubble));
+    bubble.appendChild(btn);
+  }
+
+  // 重新生成最后一条 AI 回答：复用其之前的用户输入/总结上下文
+  function regenerateLast(bubble) {
+    if (isRequesting) return; // 生成中不允许重新生成
+    if (!aiConfig.apiKey || aiConfig.apiKey.trim() === "") return;
+    // 若历史末尾是上一次已完成的 assistant 回答，先移除（被终止/出错的不在历史中）
+    if (
+      chatHistory.length &&
+      chatHistory[chatHistory.length - 1].role === "assistant"
+    ) {
+      chatHistory.pop();
+    }
+    // 需要至少有一条用户/系统消息作为生成上下文
+    if (!chatHistory.some((m) => m.role === "user")) return;
+    bubble.innerHTML = '<span style="color:#888;">AI 响应中...</span>';
+    updateChatSendButtonState();
+    runChatStream(bubble);
+  }
+
   // 统一的流式对话调用封装：接管 onChunk/onComplete/onError 重复样板。
   // onDone(plainText) 由调用方决定完成后的额外处理（如总结场景更新提示文案）。
   function runChatStream(assistantBubble, onDone) {
@@ -652,10 +696,12 @@
         activeAssistantBubble = null;
         chatHistory.push({ role: "assistant", content: plainTextForHistory });
         if (typeof onDone === "function") onDone(plainTextForHistory);
+        attachRegenButton(assistantBubble);
       },
       (errMsg) => {
         activeAssistantBubble = null;
         assistantBubble.innerHTML = `<span style="color:#f5222d;">❌ ${errMsg}</span>`;
+        attachRegenButton(assistantBubble);
       },
       assistantBubble,
     );
