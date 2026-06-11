@@ -921,7 +921,8 @@
       .getElementById("ai-setting-toggle")
       .addEventListener("click", () => {
         const box = document.getElementById("ai-panel-settings-container");
-        const isOpen = box.style.display !== "none";
+        // 初始隐藏由 CSS 类控制，内联 style.display 为空，需用 computed 判断真实状态
+        const isOpen = getComputedStyle(box).display !== "none";
         if (isOpen) {
           // 关闭设置面板时自动保存，仅在有改动时提示
           const changed = saveSettings();
