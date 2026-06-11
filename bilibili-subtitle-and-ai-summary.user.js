@@ -57,6 +57,20 @@
   let currentSubtitle = "";
   let chatHistory = [];
   let isRequesting = false;
+  let currentRequest = null; // 正在进行的 GM_xmlhttpRequest 句柄，用于可中断
+  let requestSeq = 0; // 请求序号，用于丢弃被中断的旧请求回调
+
+  // 中断当前正在进行的 AI 请求（如 SPA 切换视频时）
+  function abortCurrentRequest() {
+    if (currentRequest && typeof currentRequest.abort === "function") {
+      try {
+        currentRequest.abort();
+      } catch (e) {}
+    }
+    currentRequest = null;
+    requestSeq++; // 序号递增，使旧请求的后续回调失效
+    isRequesting = false;
+  }
 
   function addGlobalStyles() {
     if (document.getElementById("bili-ai-style")) return;
@@ -193,15 +207,18 @@
     );
   }
   function getSubtitleBody(d) {
-    if (d && d.body) return d.body;
-    if (d && d.data && d.data.body) return d.data.body;
-    throw new Error("无法解析字幕数据");
+    const body = d && d.body ? d.body : d && d.data && d.data.body ? d.data.body : null;
+    if (Array.isArray(body)) return body;
+    throw new Error("无法解析字幕数据（格式异常或为空）");
   }
   function fetchSubtitleText() {
     return new Promise((res, rej) => {
       const u = getSubtitleUrls();
       if (u.length === 0) return rej(new Error("未找到字幕"));
-      const zhUrl = u.find((url) => /(zh|cn|hans)/i.test(url));
+      // 仅在语言标识字段（lan= 或路径分段）中匹配中文，避免误命中 auth_key/域名中的 cn 等子串
+      const zhUrl = u.find((url) =>
+        /[?&]lan=(zh|cn|hans)|[-_/](zh|hans|zh-hans|zh-cn)[-_./]/i.test(url),
+      );
       let url = zhUrl || u[u.length - 1];
       if (url.startsWith("//")) url = "https:" + url;
       window
@@ -256,6 +273,13 @@
 
     const selectedModel = document.getElementById("ai-model-select").value;
     isRequesting = true;
+    const mySeq = ++requestSeq; // 本次请求的序号，后续回调需校验是否仍为最新
+    // 判断本次请求是否已被新请求/路由切换作废，或目标 bubble 已脱离文档
+    function isStale() {
+      if (mySeq !== requestSeq) return true;
+      if (assistantBubble && !assistantBubble.isConnected) return true;
+      return false;
+    }
     updateChatSendButtonState();
 
     const payload = {
@@ -277,7 +301,7 @@
         payload.thinking = { type: aiConfig.thinking ? "enabled" : "disabled" };
     }
 
-    GM_xmlhttpRequest({
+    currentRequest = GM_xmlhttpRequest({
       method: "POST",
       url: aiConfig.endpoint,
       headers: {
@@ -299,6 +323,45 @@
           let committedMain = "";
           let pendingMain = "";
           let rafId = null;
+          let receivedError = "";
+
+          // 解析一批 SSE 文本行，提取 reasoning/content 增量
+          function processLines(lines) {
+            for (let line of lines) {
+              line = line.trim();
+              if (!line.startsWith("data:")) {
+                // 非 SSE 行：可能是接口返回的 JSON 错误体，尝试提取错误信息
+                if (line && !receivedError) {
+                  try {
+                    const errObj = JSON.parse(line);
+                    const msg =
+                      errObj?.error?.message || errObj?.message || errObj?.msg;
+                    if (msg) receivedError = "接口错误: " + msg;
+                  } catch (e) {}
+                }
+                continue;
+              }
+              const dataStr = line.substring(line.indexOf(":") + 1).trim();
+              if (dataStr === "[DONE]") continue;
+              try {
+                const data = JSON.parse(dataStr);
+                if (data?.error) {
+                  const msg = data.error.message || JSON.stringify(data.error);
+                  if (!receivedError) receivedError = "接口错误: " + msg;
+                  continue;
+                }
+                const delta = data?.choices?.[0]?.delta;
+                if (!delta) continue;
+                if (delta.reasoning_content)
+                  reasoningContent += delta.reasoning_content;
+                if (delta.content) {
+                  mainContent += delta.content;
+                  pendingMain += delta.content;
+                }
+                scheduleRender();
+              } catch (e) {}
+            }
+          }
 
           function scheduleRender() {
             if (rafId) return;
@@ -352,6 +415,7 @@
             }
 
             const html = htmlParts.join("");
+            if (isStale()) return; // 请求已作废或 bubble 已移除，不再写入
             if (assistantBubble) {
               assistantBubble.innerHTML = html;
             } else {
@@ -360,31 +424,34 @@
           }
 
           while (true) {
+            if (isStale()) {
+              try {
+                await reader.cancel();
+              } catch (e) {}
+              return;
+            }
             const { done, value } = await reader.read();
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
             let lines = buffer.split("\n");
-            buffer = lines.pop();
+            buffer = lines.pop() ?? "";
+            processLines(lines);
+          }
 
-            for (let line of lines) {
-              line = line.trim();
-              if (!line.startsWith("data: ")) continue;
-              const dataStr = line.substring(6);
-              if (dataStr === "[DONE]") continue;
-              try {
-                const data = JSON.parse(dataStr);
-                const delta = data?.choices?.[0]?.delta;
-                if (!delta) continue;
-                if (delta.reasoning_content)
-                  reasoningContent += delta.reasoning_content;
-                if (delta.content) {
-                  mainContent += delta.content;
-                  pendingMain += delta.content;
-                }
-                scheduleRender();
-              } catch (e) {}
-            }
+          // 冲刷解码器与最后一行（末尾可能没有换行符，否则丢失最后一个 token）
+          buffer += decoder.decode();
+          if (buffer.trim()) processLines([buffer]);
+
+          if (isStale()) return; // 请求已作废，不再触发完成/错误回调
+
+          // 如果整个流未产生任何内容，可能是接口返回了非 SSE 的错误体
+          if (!mainContent && !reasoningContent) {
+            isRequesting = false;
+            currentRequest = null;
+            onError(receivedError || "AI 未返回内容，请检查模型名称、API Key 或接口配置");
+            updateChatSendButtonState();
+            return;
           }
 
           if (rafId) {
@@ -393,16 +460,21 @@
           }
           doRender(true);
           isRequesting = false;
+          currentRequest = null;
           onComplete(mainContent || reasoningContent);
           updateChatSendButtonState();
         } catch (err) {
+          if (isStale()) return; // 主动中断导致的异常，静默忽略
           isRequesting = false;
+          currentRequest = null;
           onError("流读取中断");
           updateChatSendButtonState();
         }
       },
       onerror: function (err) {
+        if (isStale()) return;
         isRequesting = false;
+        currentRequest = null;
         onError("网络请求失败，请检查配置或网络");
         updateChatSendButtonState();
       },
@@ -443,6 +515,7 @@
   }
 
   function triggerSummary(plainText) {
+    abortCurrentRequest(); // 中断上一次可能正在进行的请求（如重复点击「重新总结」）
     const chatContainer = document.getElementById("ai-panel-chat");
     chatContainer.innerHTML = "";
     chatHistory = [];
@@ -875,6 +948,7 @@
             cachedScriptSubtitleUrls = null;
 
             // Reset state
+            abortCurrentRequest(); // 中断可能正在进行的 AI 请求，避免向旧面板写入及状态卡死
             currentSubtitle = "";
             chatHistory = [];
 
