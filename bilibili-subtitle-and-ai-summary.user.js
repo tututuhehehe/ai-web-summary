@@ -730,8 +730,8 @@
                     </label>
                 </div>
                 <div style="margin: 0 0 4px 0; color: #999;">自定义总结 Prompt:</div>
-                <textarea id="set-prompt" class="ai-input" style="height: 54px; resize: vertical;" placeholder="要求 AI 如何进行总结...">${aiConfig.prompt}</textarea>
-                <button class="ai-chat-send" id="ai-save-btn" style="width:100%; margin-top:4px;">保存配置</button>
+                <textarea id="set-prompt" class="ai-input" style="height: 54px; resize: vertical; margin-bottom: 0;" placeholder="要求 AI 如何进行总结...">${aiConfig.prompt}</textarea>
+                <div style="margin-top: 6px; color: #777; font-size: 11px; text-align: center;">再次点击 ⚙️ 即可保存并关闭设置</div>
             </div>
 
             <div class="ai-panel-input-area">
@@ -768,14 +768,8 @@
       triggerSummary(currentSubtitle);
     });
 
-    document
-      .getElementById("ai-setting-toggle")
-      .addEventListener("click", () => {
-        const box = document.getElementById("ai-panel-settings-container");
-        box.style.display = box.style.display === "none" ? "block" : "none";
-      });
-
-    document.getElementById("ai-save-btn").addEventListener("click", () => {
+    // 保存设置：读取面板表单写回 aiConfig 并持久化，同步刷新模型下拉
+    function saveSettings() {
       for (let k in CONFIG_DICT) {
         const config = CONFIG_DICT[k];
         const el = document.getElementById(config.el);
@@ -790,17 +784,22 @@
       }
 
       updateChatSendButtonState();
+    }
 
-      const btn = document.getElementById("ai-save-btn");
-      btn.textContent = "已保存！";
-      btn.style.background = "#52c41a";
-      setTimeout(() => {
-        btn.textContent = "保存配置";
-        btn.style.background = "#00a1d6";
-        document.getElementById("ai-panel-settings-container").style.display =
-          "none";
-      }, 1000);
-    });
+    document
+      .getElementById("ai-setting-toggle")
+      .addEventListener("click", () => {
+        const box = document.getElementById("ai-panel-settings-container");
+        const isOpen = box.style.display !== "none";
+        if (isOpen) {
+          // 关闭设置面板时自动保存
+          saveSettings();
+          box.style.display = "none";
+          showInfoBar("✅ 设置已保存", "success", 1200);
+        } else {
+          box.style.display = "block";
+        }
+      });
 
     document
       .getElementById("ai-chat-send")
