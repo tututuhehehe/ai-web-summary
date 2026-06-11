@@ -25,12 +25,25 @@
   const startTime = performance.now();
   const version = GM_info.script.version;
 
+  // 集中管理外部端点常量，避免在多处硬编码
+  const ENDPOINTS = {
+    aliyun:
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    deepseek: "https://api.deepseek.com/chat/completions",
+  };
+
+  // 集中管理 B 站播放器 DOM 选择器，B 站改版时只需在此处维护
+  const SELECTORS = {
+    subtitleLangItem: ".bpx-player-ctrl-subtitle-language-item",
+    subtitleToggle: ".bpx-player-ctrl-subtitle",
+  };
+
   // 配置数据字典
   const CONFIG_DICT = {
     provider: { key: "ai_provider", def: "aliyun", el: "set-provider" },
     endpoint: {
       key: "ai_endpoint",
-      def: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      def: ENDPOINTS.aliyun,
       el: "set-endpoint",
     },
     apiKey: { key: "ai_api_key", def: "", el: "set-apikey" },
@@ -150,76 +163,81 @@
     document.head.appendChild(style);
   }
 
-  function showInfoBar(m, t = "info", d = 3000) {
-    const e = document.querySelector(".bilibili-subtitle-infobar");
-    if (e) e.remove();
-    const i = document.createElement("div");
-    i.className = `bilibili-subtitle-infobar ${t}`;
-    i.textContent = m;
-    document.body.appendChild(i);
-    if (d > 0) {
+  function showInfoBar(message, type = "info", duration = 3000) {
+    const existing = document.querySelector(".bilibili-subtitle-infobar");
+    if (existing) existing.remove();
+    const bar = document.createElement("div");
+    bar.className = `bilibili-subtitle-infobar ${type}`;
+    bar.textContent = message;
+    document.body.appendChild(bar);
+    if (duration > 0) {
       setTimeout(() => {
-        if (i.parentNode) {
-          i.style.opacity = "0";
-          i.style.transform = "translate(-50%, -50%) scale(0.9)";
-          setTimeout(() => i.remove(), 300);
+        if (bar.parentNode) {
+          bar.style.opacity = "0";
+          bar.style.transform = "translate(-50%, -50%) scale(0.9)";
+          setTimeout(() => bar.remove(), 300);
         }
-      }, d);
+      }, duration);
     }
-    return i;
+    return bar;
   }
   function setupNetworkInterception() {
-    const s = document.createElement("script");
-    s.textContent = `(function(){window._biliSubtitleUrls=window._biliSubtitleUrls||[];const o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==='string'&&(u.includes('subtitle')||u.includes('ai_subtitle')))window._biliSubtitleUrls.push(u);return o.apply(this,arguments);};const f=window.fetch;window.fetch=function(u,op){let r=typeof u==='string'?u:(u&&u.url?u.url:'');if(r&&(r.includes('subtitle')||r.includes('ai_subtitle')))window._biliSubtitleUrls.push(r);return f.apply(this,arguments);};})();`;
-    (document.head || document.documentElement).appendChild(s);
-    s.remove();
+    const script = document.createElement("script");
+    script.textContent = `(function(){window._biliSubtitleUrls=window._biliSubtitleUrls||[];const o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==='string'&&(u.includes('subtitle')||u.includes('ai_subtitle')))window._biliSubtitleUrls.push(u);return o.apply(this,arguments);};const f=window.fetch;window.fetch=function(u,op){let r=typeof u==='string'?u:(u&&u.url?u.url:'');if(r&&(r.includes('subtitle')||r.includes('ai_subtitle')))window._biliSubtitleUrls.push(r);return f.apply(this,arguments);};})();`;
+    (document.head || document.documentElement).appendChild(script);
+    script.remove();
   }
   let cachedScriptSubtitleUrls = null;
   function getSubtitleUrls() {
-    const r = [];
+    const urls = [];
     if (!cachedScriptSubtitleUrls) {
       cachedScriptSubtitleUrls = [];
-      document.querySelectorAll("script").forEach((s) => {
-        const c = s.textContent;
-        if (!c) return;
-        const u = c.match(
+      document.querySelectorAll("script").forEach((scriptEl) => {
+        const code = scriptEl.textContent;
+        if (!code) return;
+        const jsonUrls = code.match(
           /https?:\/\/[^\s"]*subtitle\/[^\s"]*\.json\?auth_key=[^\s"]*/g,
         );
-        if (u) cachedScriptSubtitleUrls.push(...u);
-        const a = c.match(
+        if (jsonUrls) cachedScriptSubtitleUrls.push(...jsonUrls);
+        const aiUrls = code.match(
           /https?:\/\/[^\s"]*ai_subtitle\/[^\s"]*\?auth_key=[^\s"]*/g,
         );
-        if (a) cachedScriptSubtitleUrls.push(...a);
+        if (aiUrls) cachedScriptSubtitleUrls.push(...aiUrls);
       });
     }
-    r.push(...cachedScriptSubtitleUrls);
+    urls.push(...cachedScriptSubtitleUrls);
 
     if (typeof unsafeWindow !== "undefined" && unsafeWindow._biliSubtitleUrls) {
-      r.push(...unsafeWindow._biliSubtitleUrls);
+      urls.push(...unsafeWindow._biliSubtitleUrls);
     } else if (window._biliSubtitleUrls) {
-      r.push(...window._biliSubtitleUrls);
+      urls.push(...window._biliSubtitleUrls);
     }
-    return [...new Set(r)].filter(
+    return [...new Set(urls)].filter(
       (url) =>
         url &&
         (url.includes("subtitle") || url.includes("ai_subtitle")) &&
         url.includes("auth_key"),
     );
   }
-  function getSubtitleBody(d) {
-    const body = d && d.body ? d.body : d && d.data && d.data.body ? d.data.body : null;
+  function getSubtitleBody(data) {
+    const body =
+      data && data.body
+        ? data.body
+        : data && data.data && data.data.body
+          ? data.data.body
+          : null;
     if (Array.isArray(body)) return body;
     throw new Error("无法解析字幕数据（格式异常或为空）");
   }
   function fetchSubtitleText() {
     return new Promise((res, rej) => {
-      const u = getSubtitleUrls();
-      if (u.length === 0) return rej(new Error("未找到字幕"));
+      const urls = getSubtitleUrls();
+      if (urls.length === 0) return rej(new Error("未找到字幕"));
       // 仅在语言标识字段（lan= 或路径分段）中匹配中文，避免误命中 auth_key/域名中的 cn 等子串
-      const zhUrl = u.find((url) =>
+      const zhUrl = urls.find((url) =>
         /[?&]lan=(zh|cn|hans)|[-_/](zh|hans|zh-hans|zh-cn)[-_./]/i.test(url),
       );
-      let url = zhUrl || u[u.length - 1];
+      let url = zhUrl || urls[urls.length - 1];
       if (url.startsWith("//")) url = "https:" + url;
       // 使用 GM_xmlhttpRequest 下载字幕，避免 *.bilibili.com 对 *.hdslb.com 的跨域限制
       GM_xmlhttpRequest({
@@ -274,7 +292,8 @@
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function requestAIStream(
@@ -536,6 +555,25 @@
     return bubble;
   }
 
+  // 统一的流式对话调用封装：接管 onChunk/onComplete/onError 重复样板。
+  // onDone(plainText) 由调用方决定完成后的额外处理（如总结场景更新提示文案）。
+  function runChatStream(assistantBubble, onDone) {
+    requestAIStream(
+      chatHistory,
+      (htmlToDisplay) => {
+        assistantBubble.innerHTML = htmlToDisplay;
+      },
+      (plainTextForHistory) => {
+        chatHistory.push({ role: "assistant", content: plainTextForHistory });
+        if (typeof onDone === "function") onDone(plainTextForHistory);
+      },
+      (errMsg) => {
+        assistantBubble.innerHTML = `<span style="color:#f5222d;">❌ ${errMsg}</span>`;
+      },
+      assistantBubble,
+    );
+  }
+
   function triggerSummary(plainText) {
     abortCurrentRequest(); // 中断上一次可能正在进行的请求（如重复点击「重新总结」）
     const chatContainer = document.getElementById("ai-panel-chat");
@@ -555,22 +593,11 @@
       '<span style="color:#888;">AI 响应中...</span>',
     );
 
-    requestAIStream(
-      chatHistory,
-      (htmlToDisplay) => {
-        assistantBubble.innerHTML = htmlToDisplay;
-      },
-      (plainTextForHistory) => {
-        chatHistory.push({ role: "assistant", content: plainTextForHistory });
-        document
-          .getElementById("ai-panel-chat")
-          .querySelector(".system").textContent = "总结完成，您可以继续提问👇";
-      },
-      (errMsg) => {
-        assistantBubble.innerHTML = `<span style="color:#f5222d;">❌ ${errMsg}</span>`;
-      },
-      assistantBubble,
-    );
+    runChatStream(assistantBubble, () => {
+      document
+        .getElementById("ai-panel-chat")
+        .querySelector(".system").textContent = "总结完成，您可以继续提问👇";
+    });
   }
 
   function handleSendChat() {
@@ -609,19 +636,7 @@
     const chatContainer = document.getElementById("ai-panel-chat");
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-    requestAIStream(
-      chatHistory,
-      (htmlToDisplay) => {
-        assistantBubble.innerHTML = htmlToDisplay;
-      },
-      (plainTextForHistory) => {
-        chatHistory.push({ role: "assistant", content: plainTextForHistory });
-      },
-      (errMsg) => {
-        assistantBubble.innerHTML = `<span style="color:#f5222d;">❌ ${errMsg}</span>`;
-      },
-      assistantBubble,
-    );
+    runChatStream(assistantBubble);
   }
 
   function handleAISummaryBtn() {
@@ -733,11 +748,10 @@
         const epInput = document.getElementById("set-endpoint");
         if (this.value === "aliyun") {
           epInput.style.display = "none";
-          epInput.value =
-            "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+          epInput.value = ENDPOINTS.aliyun;
         } else if (this.value === "deepseek") {
           epInput.style.display = "none";
-          epInput.value = "https://api.deepseek.com/chat/completions";
+          epInput.value = ENDPOINTS.deepseek;
         } else {
           epInput.style.display = "block";
         }
@@ -837,18 +851,14 @@
 
     showInfoBar("自动加载字幕资源中...", "info", 1000);
 
-    let langItem = document.querySelector(
-      ".bpx-player-ctrl-subtitle-language-item",
-    );
+    let langItem = document.querySelector(SELECTORS.subtitleLangItem);
 
     if (!langItem) {
-      const subToggle = document.querySelector(".bpx-player-ctrl-subtitle");
+      const subToggle = document.querySelector(SELECTORS.subtitleToggle);
       if (subToggle) {
         subToggle.dispatchEvent(new MouseEvent("mouseenter"));
         await new Promise((resolve) => setTimeout(resolve, 300));
-        langItem = document.querySelector(
-          ".bpx-player-ctrl-subtitle-language-item",
-        );
+        langItem = document.querySelector(SELECTORS.subtitleLangItem);
       }
     }
 
@@ -884,18 +894,10 @@
   }
 
   function createGlobalObserver() {
-    const observer = new MutationObserver((mutations) => {
-      let shouldCheck = false;
-      for (const mutation of mutations) {
-        if (mutation.addedNodes.length > 0) {
-          shouldCheck = true;
-          break;
-        }
-      }
-      if (!shouldCheck) return;
-
+    // 向字幕语言项注入“[复制]”按钮
+    function injectCopyButtons() {
       const subtitleItems = document.querySelectorAll(
-        ".bpx-player-ctrl-subtitle-language-item",
+        SELECTORS.subtitleLangItem,
       );
       if (subtitleItems.length === 0) return;
 
@@ -928,6 +930,25 @@
         actionsContainer.appendChild(copyBtn);
         item.appendChild(actionsContainer);
       });
+    }
+
+    // 防抖：B 站 SPA 下 DOM 变动极频繁，合并高频触发，避免每次变动都扫全量 DOM
+    let debounceTimer = null;
+    const observer = new MutationObserver((mutations) => {
+      let hasAddedNodes = false;
+      for (const mutation of mutations) {
+        if (mutation.addedNodes.length > 0) {
+          hasAddedNodes = true;
+          break;
+        }
+      }
+      if (!hasAddedNodes) return;
+
+      if (debounceTimer) return;
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        injectCopyButtons();
+      }, 100);
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
