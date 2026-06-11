@@ -74,16 +74,28 @@
   let requestSeq = 0; // 请求序号，用于丢弃被中断的旧请求回调
   let activeAssistantBubble = null; // 当前正在流式写入的 assistant 气泡，用于终止时标注
   let subtitleAvailable = false; // 是否已检测到本视频字幕（决定“总结”按钮是否可点击）
-  let subtitleDetectTimer = null; // 进入页面/切换后延时检测字幕的定时器
+  let subtitleDetectTimer = null; // 进入页面/切换后轮询检测字幕的定时器
 
-  // 进入视频页后延时检测是否有字幕：有则启用总结按钮，无则保持灰色（不提示、不主动加载）
-  function scheduleSubtitleDetection(delay = 1000) {
-    if (subtitleDetectTimer) clearTimeout(subtitleDetectTimer);
-    subtitleDetectTimer = setTimeout(() => {
-      subtitleDetectTimer = null;
-      subtitleAvailable = getSubtitleUrls().length > 0;
-      updateChatSendButtonState();
-    }, delay);
+  // 进入视频页后轮询检测是否有字幕：3 秒内每 0.5s 检测一次，
+  // 检测到则启用总结按钮并停止；超时仍无则保持灰色（不提示、不主动加载）
+  function scheduleSubtitleDetection(interval = 500, maxDuration = 3000) {
+    if (subtitleDetectTimer) clearInterval(subtitleDetectTimer);
+    const startedAt = Date.now();
+    const check = () => {
+      if (getSubtitleUrls().length > 0) {
+        subtitleAvailable = true;
+        updateChatSendButtonState();
+        clearInterval(subtitleDetectTimer);
+        subtitleDetectTimer = null;
+        return;
+      }
+      if (Date.now() - startedAt >= maxDuration) {
+        clearInterval(subtitleDetectTimer);
+        subtitleDetectTimer = null;
+      }
+    };
+    subtitleDetectTimer = setInterval(check, interval);
+    check(); // 立即先检测一次
   }
 
   // 用户主动终止当前生成：中断请求并在已生成内容后追加「已终止」标记
@@ -146,6 +158,7 @@
                 --text-strong: #fff;
                 --strong-accent: #50E3C2;
                 --shadow: rgba(0,0,0,0.6);
+                --panel-shadow: 0 12px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06);
                 --row-stripe: rgba(255, 255, 255, 0.03);
                 --infobar-bg: rgba(25, 26, 27, 0.98);
                 --infobar-border: rgba(255, 255, 255, 0.2);
@@ -169,6 +182,7 @@
                     --text-strong: #000;
                     --strong-accent: #0a9e86;
                     --shadow: rgba(0,0,0,0.18);
+                    --panel-shadow: 0 12px 40px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.18);
                     --row-stripe: rgba(0, 0, 0, 0.03);
                     --infobar-bg: rgba(255, 255, 255, 0.98);
                     --infobar-border: rgba(0, 0, 0, 0.12);
@@ -199,7 +213,7 @@
             #bili-ai-panel {
                 position: fixed; right: 20px; top: 80px; width: 420px; height: 680px;
                 background-color: var(--bg); border: 1px solid var(--border); border-radius: 12px;
-                box-shadow: 0 10px 40px var(--shadow); z-index: 2147483646; display: none;
+                box-shadow: var(--panel-shadow); z-index: 2147483646; display: none;
                 flex-direction: column; color: var(--text); font-family: sans-serif;
             }
             .ai-panel-header {
