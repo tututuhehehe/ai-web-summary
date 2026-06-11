@@ -154,7 +154,7 @@
             .ai-icon-btn { cursor: pointer; color: #999; font-size: 16px; transition: color 0.2s; }
             .ai-icon-btn:hover { color: #fff; }
 
-            .ai-panel-chat { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 16px; }
+            .ai-panel-chat { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; }
             .chat-bubble { padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.6; word-wrap: break-word; overflow-wrap: anywhere; box-sizing: border-box; }
             .chat-bubble.user { max-width: 82%; background: #00a1d6; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
             .chat-bubble.assistant { width: 100%; max-width: 100%; background: #2a2a2b; color: #d1d5db; align-self: stretch; border-bottom-left-radius: 2px; border: 1px solid #333; overflow: visible;}
@@ -835,6 +835,33 @@
           epInput.style.display = "block";
         }
       });
+
+    // 防止面板内滚动穿透到底层视频页面：
+    // 1) 阻止滚轮事件冒泡到 document
+    // 2) 聊天区滚到顶/底后继续滚动时，阻止默认行为，避免触发整页滚动
+    const chatScroll = document.getElementById("ai-panel-chat");
+    chatScroll.addEventListener(
+      "wheel",
+      (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = chatScroll;
+        const atTop = scrollTop <= 0;
+        const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+        // 内容不足以滚动，或在边界继续向边界外滚动时，吃掉事件
+        if (
+          scrollHeight <= clientHeight ||
+          (atTop && e.deltaY < 0) ||
+          (atBottom && e.deltaY > 0)
+        ) {
+          e.preventDefault();
+        }
+        e.stopPropagation();
+      },
+      { passive: false },
+    );
+    // 设置面板与输入区的滚轮也不应穿透
+    panel.addEventListener("wheel", (e) => e.stopPropagation(), {
+      passive: false,
+    });
 
     // 面板内按键事件
     document.getElementById("ai-minimize-btn").addEventListener("click", () => {
