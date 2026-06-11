@@ -181,7 +181,18 @@
             .ai-chat-send.ai-chat-stop { background: #d9363e; font-size: 18px; padding: 0 14px; }
             .ai-chat-send.ai-chat-stop:hover { background: #f5222d; }
 
-            .ai-panel-settings { position: absolute; bottom: 61px; left: 0; right: 0; padding: 16px; border-top: 1px solid #333; font-size: 12px; background: rgba(37, 37, 40, 0.95); backdrop-filter: blur(10px); display: none; z-index: 10; border-radius: 0 0 12px 12px;}
+            .ai-panel-settings {
+                position: absolute; top: 53px; left: 12px; right: 12px;
+                max-height: calc(100% - 130px); overflow-y: auto; overscroll-behavior: contain;
+                padding: 16px; font-size: 12px;
+                background: #2d2d31; border: 1px solid #4a4a50; border-radius: 10px;
+                box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+                display: none; z-index: 10;
+            }
+            .ai-panel-settings::before {
+                content: "⚙️ 设置"; display: block; font-size: 13px; font-weight: bold;
+                color: #00a1d6; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #3a3a40;
+            }
             .ai-input { width: 100%; box-sizing: border-box; margin-top: 4px; margin-bottom: 8px; padding: 6px; background: #1e1e20; border: 1px solid #444; color: white; border-radius: 4px; font-family: inherit;}
             .ai-settings-row { display: flex; gap: 8px; }
         `;
