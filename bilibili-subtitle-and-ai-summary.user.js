@@ -847,32 +847,39 @@
         }
       });
 
-    // 防止面板内滚动穿透到底层视频页面：
-    // 1) 阻止滚轮事件冒泡到 document
-    // 2) 聊天区滚到顶/底后继续滚动时，阻止默认行为，避免触发整页滚动
-    const chatScroll = document.getElementById("ai-panel-chat");
-    chatScroll.addEventListener(
+    // 防止面板内滚动穿透到底层视频页面：在整个面板上统一拦截滚轮。
+    // 找到事件路径上最近的可滚动容器；若存在且未到边界则放行，
+    // 到边界、不可滚动或点在空白区域时一律 preventDefault，防止触发整页滚动。
+    panel.addEventListener(
       "wheel",
       (e) => {
-        const { scrollTop, scrollHeight, clientHeight } = chatScroll;
+        e.stopPropagation();
+        // 从事件起点向上查找面板内可纵向滚动的容器
+        let node = e.target;
+        let scroller = null;
+        while (node && node !== panel) {
+          if (node.scrollHeight > node.clientHeight) {
+            const style = getComputedStyle(node);
+            if (/(auto|scroll)/.test(style.overflowY)) {
+              scroller = node;
+              break;
+            }
+          }
+          node = node.parentElement;
+        }
+        if (!scroller) {
+          e.preventDefault(); // 无可滚动区域（header/输入区/空白），直接吃掉
+          return;
+        }
+        const { scrollTop, scrollHeight, clientHeight } = scroller;
         const atTop = scrollTop <= 0;
         const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
-        // 内容不足以滚动，或在边界继续向边界外滚动时，吃掉事件
-        if (
-          scrollHeight <= clientHeight ||
-          (atTop && e.deltaY < 0) ||
-          (atBottom && e.deltaY > 0)
-        ) {
-          e.preventDefault();
+        if ((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0)) {
+          e.preventDefault(); // 在边界继续向边界外滚动
         }
-        e.stopPropagation();
       },
       { passive: false },
     );
-    // 设置面板与输入区的滚轮也不应穿透
-    panel.addEventListener("wheel", (e) => e.stopPropagation(), {
-      passive: false,
-    });
 
     // 面板内按键事件
     document.getElementById("ai-minimize-btn").addEventListener("click", () => {
