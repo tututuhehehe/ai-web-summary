@@ -221,20 +221,38 @@
       );
       let url = zhUrl || u[u.length - 1];
       if (url.startsWith("//")) url = "https:" + url;
-      window
-        .fetch(url)
-        .then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        })
-        .then((d) =>
-          res(
-            getSubtitleBody(d)
-              .map((i) => i.content)
-              .join("\n"),
-          ),
-        )
-        .catch(rej);
+      // 使用 GM_xmlhttpRequest 下载字幕，避免 *.bilibili.com 对 *.hdslb.com 的跨域限制
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: url,
+        responseType: "json",
+        onload: function (response) {
+          if (response.status < 200 || response.status >= 300) {
+            rej(new Error(`HTTP ${response.status}`));
+            return;
+          }
+          try {
+            // 部分管理器不会根据 responseType 自动解析，需兼容 responseText
+            let data = response.response;
+            if (typeof data === "string") data = JSON.parse(data);
+            else if (data == null && response.responseText)
+              data = JSON.parse(response.responseText);
+            res(
+              getSubtitleBody(data)
+                .map((i) => i.content)
+                .join("\n"),
+            );
+          } catch (e) {
+            rej(new Error("字幕解析失败: " + e.message));
+          }
+        },
+        onerror: function () {
+          rej(new Error("字幕下载失败（网络错误）"));
+        },
+        ontimeout: function () {
+          rej(new Error("字幕下载超时"));
+        },
+      });
     });
   }
   function handleCopySubtitle() {
