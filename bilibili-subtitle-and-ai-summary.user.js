@@ -768,22 +768,29 @@
       triggerSummary(currentSubtitle);
     });
 
-    // 保存设置：读取面板表单写回 aiConfig 并持久化，同步刷新模型下拉
+    // 保存设置：读取面板表单写回 aiConfig 并持久化。仅在确实有改动时写入，返回是否发生了变更
     function saveSettings() {
+      let changed = false;
       for (let k in CONFIG_DICT) {
         const config = CONFIG_DICT[k];
         const el = document.getElementById(config.el);
-        aiConfig[k] = config.isCheckbox ? el.checked : el.value;
-        GM_setValue(config.key, aiConfig[k]);
+        const newVal = config.isCheckbox ? el.checked : el.value;
+        if (newVal !== aiConfig[k]) {
+          aiConfig[k] = newVal;
+          GM_setValue(config.key, newVal);
+          changed = true;
+        }
       }
 
-      const select = document.getElementById("ai-model-select");
-      select.innerHTML = `<option value="${aiConfig.model1}">${aiConfig.model1} (主)</option>`;
-      if (aiConfig.model2) {
-        select.innerHTML += `<option value="${aiConfig.model2}">${aiConfig.model2} (备)</option>`;
+      if (changed) {
+        const select = document.getElementById("ai-model-select");
+        select.innerHTML = `<option value="${aiConfig.model1}">${aiConfig.model1} (主)</option>`;
+        if (aiConfig.model2) {
+          select.innerHTML += `<option value="${aiConfig.model2}">${aiConfig.model2} (备)</option>`;
+        }
+        updateChatSendButtonState();
       }
-
-      updateChatSendButtonState();
+      return changed;
     }
 
     document
@@ -792,10 +799,10 @@
         const box = document.getElementById("ai-panel-settings-container");
         const isOpen = box.style.display !== "none";
         if (isOpen) {
-          // 关闭设置面板时自动保存
-          saveSettings();
+          // 关闭设置面板时自动保存，仅在有改动时提示
+          const changed = saveSettings();
           box.style.display = "none";
-          showInfoBar("✅ 设置已保存", "success", 1200);
+          if (changed) showInfoBar("✅ 设置已保存", "success", 1200);
         } else {
           box.style.display = "block";
         }
