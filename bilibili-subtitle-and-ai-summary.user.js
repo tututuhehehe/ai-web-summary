@@ -72,6 +72,28 @@
   let isRequesting = false;
   let currentRequest = null; // 正在进行的 GM_xmlhttpRequest 句柄，用于可中断
   let requestSeq = 0; // 请求序号，用于丢弃被中断的旧请求回调
+  let activeAssistantBubble = null; // 当前正在流式写入的 assistant 气泡，用于终止时标注
+
+  // 用户主动终止当前生成：中断请求并在已生成内容后追加「已终止」标记
+  function stopCurrentGeneration() {
+    const bubble = activeAssistantBubble;
+    abortCurrentRequest();
+    if (bubble) {
+      // 若气泡还是初始「响应中」占位文本，直接提示已终止；否则在现有内容后追加
+      const onlyPlaceholder = /^\s*<span[^>]*>AI[^<]*<\/span>\s*$/.test(
+        bubble.innerHTML,
+      );
+      if (onlyPlaceholder) {
+        bubble.innerHTML =
+          '<span style="color:#888;">⛔ 已终止生成</span>';
+      } else {
+        bubble.innerHTML +=
+          '<div style="color:#888;font-size:12px;margin-top:6px;">⛔ 已终止生成</div>';
+      }
+    }
+    activeAssistantBubble = null;
+    updateChatSendButtonState();
+  }
 
   // 中断当前正在进行的 AI 请求（如 SPA 切换视频时）
   function abortCurrentRequest() {
@@ -83,6 +105,7 @@
     currentRequest = null;
     requestSeq++; // 序号递增，使旧请求的后续回调失效
     isRequesting = false;
+    activeAssistantBubble = null;
   }
 
   function addGlobalStyles() {
@@ -155,6 +178,8 @@
             .ai-chat-send { background: #00a1d6; color: white; border: none; padding: 0 16px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s;}
             .ai-chat-send:hover { background: #0088b5; }
             .ai-chat-send:disabled { background: #444; color: #888; cursor: not-allowed; }
+            .ai-chat-send.ai-chat-stop { background: #d9363e; font-size: 18px; padding: 0 14px; }
+            .ai-chat-send.ai-chat-stop:hover { background: #f5222d; }
 
             .ai-panel-settings { position: absolute; bottom: 61px; left: 0; right: 0; padding: 16px; border-top: 1px solid #333; font-size: 12px; background: rgba(37, 37, 40, 0.95); backdrop-filter: blur(10px); display: none; z-index: 10; border-radius: 0 0 12px 12px;}
             .ai-input { width: 100%; box-sizing: border-box; margin-top: 4px; margin-bottom: 8px; padding: 6px; background: #1e1e20; border: 1px solid #444; color: white; border-radius: 4px; font-family: inherit;}
@@ -361,6 +386,9 @@
           let pendingMain = "";
           let rafId = null;
           let receivedError = "";
+          let thinkStartTime = 0; // 思考（reasoning）首次出现的时间炳
+          let thinkSeconds = 0; // 已思考秒数（一秒一秒跳动）
+          let thinkTimer = null; // 思考计时器，每秒刷新标题
 
           // 解析一批 SSE 文本行，提取 reasoning/content 增量
           function processLines(lines) {
@@ -389,15 +417,44 @@
                 }
                 const delta = data?.choices?.[0]?.delta;
                 if (!delta) continue;
-                if (delta.reasoning_content)
+                if (delta.reasoning_content) {
                   reasoningContent += delta.reasoning_content;
+                  // 首次收到思考内容：启动每秒计时，让标题秒数一秒一秒跳
+                  if (!thinkStartTime) {
+                    thinkStartTime = Date.now();
+                    thinkTimer = setInterval(() => {
+                      thinkSeconds = Math.floor(
+                        (Date.now() - thinkStartTime) / 1000,
+                      );
+                      // 正文尚未出现时才需持续刷新思考秒数
+                      if (!mainContent) {
+                        lastRenderedReasoning = null; // 强制重渲染标题
+                        doRender(false);
+                      }
+                    }, 1000);
+                  }
+                }
                 if (delta.content) {
+                  // 首次出现正文：停止思考计时，定格耗时秒数
+                  if (thinkTimer && !mainContent) stopThinkTimer();
                   mainContent += delta.content;
                   pendingMain += delta.content;
                 }
                 scheduleRender();
               } catch (e) {}
             }
+          }
+
+          // 停止思考计时器并定格最终秒数
+          function stopThinkTimer() {
+            if (thinkTimer) {
+              clearInterval(thinkTimer);
+              thinkTimer = null;
+            }
+            if (thinkStartTime) {
+              thinkSeconds = Math.floor((Date.now() - thinkStartTime) / 1000);
+            }
+            lastRenderedReasoning = null; // 强制下次重渲染标题（思考中→思考过程）
           }
 
           function scheduleRender() {
@@ -413,11 +470,11 @@
 
             if (reasoningContent !== lastRenderedReasoning) {
               lastRenderedReasoning = reasoningContent;
-              // 思考框始终默认折叠；思考进行中（正文还未出现）在标题行提示状态，让用户知道没卡住
+              // 思考框始终默认折叠；思考进行中（正文还未出现）在标题行提示已思考秒数，让用户知道没卡住
               const thinking = !isFinal && !mainContent;
               const summaryText = thinking
-                ? `💭 思考中… (${reasoningContent.length}字)`
-                : `💭 思考过程 (${reasoningContent.length}字)`;
+                ? `💭 思考中… (${thinkSeconds}s)`
+                : `💭 思考过程 (耗时 ${thinkSeconds}s)`;
               htmlParts.push(
                 `<details style="margin-bottom:8px;">` +
                   `<summary style="color:#aaa;font-size:12px;cursor:pointer;user-select:none;">${summaryText}</summary>` +
@@ -466,6 +523,7 @@
 
           while (true) {
             if (isStale()) {
+              stopThinkTimer();
               try {
                 await reader.cancel();
               } catch (e) {}
@@ -479,6 +537,9 @@
             buffer = lines.pop() ?? "";
             processLines(lines);
           }
+
+          // 流结束，停止思考计时
+          stopThinkTimer();
 
           // 冲刷解码器与最后一行（末尾可能没有换行符，否则丢失最后一个 token）
           buffer += decoder.decode();
@@ -505,6 +566,7 @@
           onComplete(mainContent || reasoningContent);
           updateChatSendButtonState();
         } catch (err) {
+          stopThinkTimer();
           if (isStale()) return; // 主动中断导致的异常，静默忽略
           isRequesting = false;
           currentRequest = null;
@@ -527,17 +589,28 @@
     const textarea = document.getElementById("ai-chat-textarea");
     if (!btn || !textarea) return;
 
+    // 请求进行中：按钮变为可点击的「终止」，点击中断回答
+    if (isRequesting) {
+      btn.textContent = "⏹";
+      btn.title = "终止生成";
+      btn.disabled = false;
+      btn.classList.add("ai-chat-stop");
+      return;
+    }
+
+    btn.classList.remove("ai-chat-stop");
+    btn.title = "";
     if (!aiConfig.apiKey || aiConfig.apiKey.trim() === "") {
       btn.textContent = "发送";
       btn.disabled = true;
       textarea.placeholder = "请先配置 API Key...";
     } else if (chatHistory.length === 0) {
       btn.textContent = "总结";
-      btn.disabled = isRequesting;
+      btn.disabled = false;
       textarea.placeholder = "点击“总结”获取视频内容总结...";
     } else {
       btn.textContent = "发送";
-      btn.disabled = isRequesting;
+      btn.disabled = false;
       textarea.placeholder = "向 AI 提问关于视频的内容...";
     }
   }
@@ -558,16 +631,19 @@
   // 统一的流式对话调用封装：接管 onChunk/onComplete/onError 重复样板。
   // onDone(plainText) 由调用方决定完成后的额外处理（如总结场景更新提示文案）。
   function runChatStream(assistantBubble, onDone) {
+    activeAssistantBubble = assistantBubble; // 记录活动气泡，供终止时标注
     requestAIStream(
       chatHistory,
       (htmlToDisplay) => {
         assistantBubble.innerHTML = htmlToDisplay;
       },
       (plainTextForHistory) => {
+        activeAssistantBubble = null;
         chatHistory.push({ role: "assistant", content: plainTextForHistory });
         if (typeof onDone === "function") onDone(plainTextForHistory);
       },
       (errMsg) => {
+        activeAssistantBubble = null;
         assistantBubble.innerHTML = `<span style="color:#f5222d;">❌ ${errMsg}</span>`;
       },
       assistantBubble,
@@ -601,7 +677,10 @@
   }
 
   function handleSendChat() {
-    if (isRequesting) return;
+    if (isRequesting) {
+      stopCurrentGeneration(); // 生成中点击终止按钮，中断当前回答
+      return;
+    }
 
     if (!aiConfig.apiKey || aiConfig.apiKey.trim() === "") {
       const chatContainer = document.getElementById("ai-panel-chat");
