@@ -394,10 +394,14 @@
 
             if (reasoningContent !== lastRenderedReasoning) {
               lastRenderedReasoning = reasoningContent;
-              const isOpen = !isFinal || !mainContent;
+              // 思考框始终默认折叠；思考进行中（正文还未出现）在标题行提示状态，让用户知道没卡住
+              const thinking = !isFinal && !mainContent;
+              const summaryText = thinking
+                ? `💭 思考中… (${reasoningContent.length}字)`
+                : `💭 思考过程 (${reasoningContent.length}字)`;
               htmlParts.push(
-                `<details ${isOpen ? "open" : ""} style="margin-bottom:8px;">` +
-                  `<summary style="color:#aaa;font-size:12px;cursor:pointer;user-select:none;">💭 思考过程 (${reasoningContent.length}字)</summary>` +
+                `<details style="margin-bottom:8px;">` +
+                  `<summary style="color:#aaa;font-size:12px;cursor:pointer;user-select:none;">${summaryText}</summary>` +
                   `<div style="color:#888;font-size:12px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;margin-top:4px;white-space:pre-wrap;">${escapeHtml(reasoningContent)}</div></details>`,
               );
             } else {

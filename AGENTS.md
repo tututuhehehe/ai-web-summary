@@ -40,6 +40,7 @@
 - 需要手动解析 `GM_xmlhttpRequest` 触发的流数据，并处理 SSE 格式。
 - 脚本支持多服务商配置（阿里云 DashScope、DeepSeek 官方、自定义）。
 - **特异性处理**：需要特别注意“思考/推理”模式（Reasoning）在不同厂商间 payload 的差异（例如阿里云的 `enable_thinking: true` vs DeepSeek 的 `thinking: { type: "enabled" }`），并在 UI 更新中将 `reasoning_content`（思考过程）与标准 `content`（正文）分开处理和渲染。
+- **思考框 UI 规范**：渲染 `reasoning_content` 的折叠框（`<details>`）必须**默认折叠**，不要默认展开。思考进行中（正文 `content` 尚未出现）时，折叠标题应显示动态状态（如“💭 思考中… (N字)”并随字数增长），让用户明确知道 AI 在思考而非卡死；思考结束后标题恢复为“💭 思考过程 (N字)”。
 
 ## 5. Agent 执行指令
 当被要求修改代码或修复 bug 时，请务必遵守以下步骤：
