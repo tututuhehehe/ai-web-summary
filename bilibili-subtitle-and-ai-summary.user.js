@@ -820,7 +820,7 @@
                     </label>
                 </div>
                 <div style="margin: 0 0 4px 0; color: #999;">自定义总结 Prompt:</div>
-                <textarea id="set-prompt" class="ai-input" style="height: 54px; resize: vertical; margin-bottom: 0;" placeholder="要求 AI 如何进行总结...">${aiConfig.prompt}</textarea>
+                <textarea id="set-prompt" class="ai-input" style="height: 110px; resize: vertical; margin-bottom: 0;" placeholder="要求 AI 如何进行总结...">${aiConfig.prompt}</textarea>
                 <div style="margin-top: 6px; color: #777; font-size: 11px; text-align: center;">再次点击 ⚙️ 即可保存并关闭设置</div>
             </div>
 
