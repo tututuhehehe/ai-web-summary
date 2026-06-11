@@ -73,6 +73,18 @@
   let currentRequest = null; // 正在进行的 GM_xmlhttpRequest 句柄，用于可中断
   let requestSeq = 0; // 请求序号，用于丢弃被中断的旧请求回调
   let activeAssistantBubble = null; // 当前正在流式写入的 assistant 气泡，用于终止时标注
+  let subtitleAvailable = false; // 是否已检测到本视频字幕（决定“总结”按钮是否可点击）
+  let subtitleDetectTimer = null; // 进入页面/切换后延时检测字幕的定时器
+
+  // 进入视频页后延时检测是否有字幕：有则启用总结按钮，无则保持灰色（不提示、不主动加载）
+  function scheduleSubtitleDetection(delay = 1000) {
+    if (subtitleDetectTimer) clearTimeout(subtitleDetectTimer);
+    subtitleDetectTimer = setTimeout(() => {
+      subtitleDetectTimer = null;
+      subtitleAvailable = getSubtitleUrls().length > 0;
+      updateChatSendButtonState();
+    }, delay);
+  }
 
   // 用户主动终止当前生成：中断请求并在已生成内容后追加「已终止」标记
   function stopCurrentGeneration() {
@@ -140,12 +152,12 @@
             }
             @media (prefers-color-scheme: light) {
                 #bili-ai-panel, #bili-ai-minimized, .bilibili-subtitle-infobar {
-                    --bg: #ffffff;
-                    --bg-elev: #f2f3f5;
-                    --bg-bubble: #f4f5f7;
-                    --bg-bubble-hover: #eceef0;
-                    --bg-settings: #f7f8fa;
-                    --bg-code: #eef0f3;
+                    --bg: #eceef1;
+                    --bg-elev: #e2e5e9;
+                    --bg-bubble: #e6e8ec;
+                    --bg-bubble-hover: #dde0e5;
+                    --bg-settings: #e8eaee;
+                    --bg-code: #dde0e5;
                     --bg-think: rgba(0,0,0,0.05);
                     --border: #e0e2e6;
                     --border-2: #d0d3d8;
@@ -675,8 +687,11 @@
       textarea.placeholder = "请先配置 API Key...";
     } else if (chatHistory.length === 0) {
       btn.textContent = "总结";
-      btn.disabled = false;
-      textarea.placeholder = "点击“总结”获取视频内容总结...";
+      // 进入页面后需检测到字幕才可点击；未检测到则保持灰色禁用
+      btn.disabled = !subtitleAvailable;
+      textarea.placeholder = subtitleAvailable
+        ? "点击“总结”获取视频内容总结..."
+        : "正在检测视频字幕...";
     } else {
       btn.textContent = "发送";
       btn.disabled = false;
@@ -1220,6 +1235,7 @@
             abortCurrentRequest(); // 中断可能正在进行的 AI 请求，避免向旧面板写入及状态卡死
             currentSubtitle = "";
             chatHistory = [];
+            subtitleAvailable = false; // 切换视频后重置，重新检测字幕
 
             // Reset UI
             const chatContainer = document.getElementById("ai-panel-chat");
@@ -1229,6 +1245,7 @@
               chatContainer.scrollTop = 0;
             }
             updateChatSendButtonState();
+            scheduleSubtitleDetection(); // 切换后延时 1s 检测新视频是否有字幕
           }
         }
       }, 50);
@@ -1242,6 +1259,7 @@
 
     createAIPanel();
     createGlobalObserver();
+    scheduleSubtitleDetection(); // 进入页面 1s 后检测字幕，决定“总结”按钮是否可点击
     console.log(
       `%c 🎬 B站字幕与AI助手 v${version} %c Cost ${Math.round(performance.now() - startTime)}ms`,
       "background:#4A90E2;color:white;padding:2px 6px;border-radius:3px 0 0 3px;",
