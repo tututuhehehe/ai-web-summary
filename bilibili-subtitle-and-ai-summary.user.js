@@ -549,14 +549,21 @@
       document.querySelectorAll("script").forEach((scriptEl) => {
         const code = scriptEl.textContent;
         if (!code) return;
-        const jsonUrls = code.match(
-          /https?:\/\/[^\s"]*subtitle\/[^\s"]*\.json\?auth_key=[^\s"]*/g,
-        );
-        if (jsonUrls) cachedScriptSubtitleUrls.push(...jsonUrls);
-        const aiUrls = code.match(
-          /https?:\/\/[^\s"]*ai_subtitle\/[^\s"]*\?auth_key=[^\s"]*/g,
-        );
-        if (aiUrls) cachedScriptSubtitleUrls.push(...aiUrls);
+        // 先用 includes 短路：目标 URL 必含 auth_key，绝大多数脚本不含，
+        // 避免对每个大脚本都跑带回溯的全局正则
+        if (!code.includes("auth_key")) return;
+        if (code.includes("subtitle")) {
+          const jsonUrls = code.match(
+            /https?:\/\/[^\s"]*subtitle\/[^\s"]*\.json\?auth_key=[^\s"]*/g,
+          );
+          if (jsonUrls) cachedScriptSubtitleUrls.push(...jsonUrls);
+        }
+        if (code.includes("ai_subtitle")) {
+          const aiUrls = code.match(
+            /https?:\/\/[^\s"]*ai_subtitle\/[^\s"]*\?auth_key=[^\s"]*/g,
+          );
+          if (aiUrls) cachedScriptSubtitleUrls.push(...aiUrls);
+        }
       });
     }
     urls.push(...cachedScriptSubtitleUrls);
@@ -732,6 +739,9 @@
           let renderedSegCount = 0; // 已 append 到页面的段落数，旧节点从不重建
           let pendingMain = "";
           let rafId = null;
+          let lastRenderedPending = null; // 上次实际渲染到 DOM 的 pending 内容，用于去重跳过
+          let lastPendingRenderTs = 0; // 上次 pending 段实际渲染的时间戳，用于时间节流
+          let tailTimer = null; // 节流跳过时的尾帧兜底定时器
           let receivedError = "";
           let thinkStartTime = 0; // 思考（reasoning）首次出现的时间炳
           let thinkSeconds = 0; // 已思考秒数（一秒一秒跳动）
@@ -798,6 +808,11 @@
             if (thinkTimer) {
               clearInterval(thinkTimer);
               thinkTimer = null;
+            }
+            if (tailTimer) {
+              // 顺带清尾帧定时器，避免向已结束/作废的请求继续写入
+              clearTimeout(tailTimer);
+              tailTimer = null;
             }
             if (thinkStartTime) {
               thinkSeconds = Math.floor((Date.now() - thinkStartTime) / 1000);
@@ -897,17 +912,47 @@
               }
               renderedSegCount = committedSegments.length;
             }
+            // pending 段渲染：committed 推进与思考框更新已在上方每帧执行完毕，
+            // 这里只对“正文未定稿段”的 marked.parse + innerHTML 做节流，降低长段落的重解析开销。
+            // 规则：①内容未变则跳过；②距上次渲染不足 PENDING_RENDER_MS 则跳过，但挂一个尾帧兜底
+            //       定时器保证最终会渲染；③isFinal（流结束）无条件完整渲染，绝不被节流跳过。
             if (pendingEl) {
-              if (pendingMain) {
-                pendingEl.innerHTML = !isFinal
-                  ? marked.parse(pendingMain) +
-                    '<span style="color:var(--accent);opacity:0.6;">▍</span>'
-                  : marked.parse(pendingMain);
-              } else if (!committedMain && reasoningContent) {
-                pendingEl.innerHTML =
-                  '<span style="color:var(--text-faint);">AI 深度思考中...</span>';
-              } else {
-                pendingEl.innerHTML = "";
+              const PENDING_RENDER_MS = 80;
+
+              // 计算并写入本帧应显示的 pending HTML
+              const renderPending = () => {
+                if (tailTimer) {
+                  clearTimeout(tailTimer);
+                  tailTimer = null;
+                }
+                if (pendingMain) {
+                  pendingEl.innerHTML = !isFinal
+                    ? marked.parse(pendingMain) +
+                      '<span style="color:var(--accent);opacity:0.6;">▍</span>'
+                    : marked.parse(pendingMain);
+                } else if (!committedMain && reasoningContent) {
+                  pendingEl.innerHTML =
+                    '<span style="color:var(--text-faint);">AI 深度思考中...</span>';
+                } else {
+                  pendingEl.innerHTML = "";
+                }
+                lastRenderedPending = pendingMain;
+                lastPendingRenderTs = Date.now();
+              };
+
+              if (isFinal) {
+                renderPending(); // 流结束：强制渲染，定格最终态
+              } else if (pendingMain === lastRenderedPending) {
+                // 内容未变（如仅思考计时刷新触发的本帧）：跳过 parse
+              } else if (Date.now() - lastPendingRenderTs >= PENDING_RENDER_MS) {
+                renderPending();
+              } else if (!tailTimer) {
+                // 距上次渲染过近：本帧跳过，挂尾帧兜底，保证这段增量最终会显示
+                tailTimer = setTimeout(() => {
+                  tailTimer = null;
+                  if (isStale()) return;
+                  scheduleRender(); // 走正常帧渲染路径
+                }, PENDING_RENDER_MS);
               }
             }
           }
@@ -1262,21 +1307,14 @@
     applyMinTabPos(GM_getValue("minTabTop", null));
 
     // 拖拽逻辑：仅纵向移动，移动超过阈值才视为拖拽，否则仍为点击（展开面板）
+    // mousemove/mouseup 仅在拖拽期间（mousedown 后）绑定到 document，拖拽结束立即移除，
+    // 避免未拖拽时每次鼠标移动都进入回调。
     let dragging = false;
     let moved = false;
     let startY = 0;
     let originTop = 0;
 
-    minTab.addEventListener("mousedown", (e) => {
-      if (e.button !== 0) return;
-      dragging = true;
-      moved = false;
-      startY = e.clientY;
-      originTop = minTab.getBoundingClientRect().top;
-      e.preventDefault(); // 避免拖拽时选中文本
-    });
-
-    document.addEventListener("mousemove", (e) => {
+    function onDragMove(e) {
       if (!dragging) return;
       const dy = e.clientY - startY;
       if (!moved && Math.abs(dy) < 5) return; // 小于阈值不算拖拽
@@ -1286,15 +1324,28 @@
       const top = Math.max(0, Math.min(originTop + dy, window.innerHeight - h));
       minTab.style.top = top + "px";
       minTab.style.transform = "none";
-    });
+    }
 
-    document.addEventListener("mouseup", () => {
+    function onDragEnd() {
       if (!dragging) return;
       dragging = false;
       minTab.classList.remove("dragging");
+      document.removeEventListener("mousemove", onDragMove);
+      document.removeEventListener("mouseup", onDragEnd);
       if (moved) {
         GM_setValue("minTabTop", minTab.getBoundingClientRect().top); // 持久化，切换视频后保留
       }
+    }
+
+    minTab.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      dragging = true;
+      moved = false;
+      startY = e.clientY;
+      originTop = minTab.getBoundingClientRect().top;
+      document.addEventListener("mousemove", onDragMove);
+      document.addEventListener("mouseup", onDragEnd);
+      e.preventDefault(); // 避免拖拽时选中文本
     });
 
     minTab.addEventListener("click", (e) => {
