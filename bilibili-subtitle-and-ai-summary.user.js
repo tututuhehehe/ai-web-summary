@@ -206,6 +206,13 @@
             .ai-icon-btn { cursor: pointer; color: var(--text-mute); font-size: 16px; transition: color 0.2s; }
             .ai-icon-btn:hover { color: var(--text-strong); }
 
+            .ai-token-bar {
+                display: flex; justify-content: center; gap: 16px;
+                padding: 5px 12px; font-size: 11px; color: var(--text-mute);
+                background: var(--bg-elev); border-bottom: 1px solid var(--border);
+            }
+            .ai-token-bar span { white-space: nowrap; }
+
             .ai-panel-chat { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; }
             .chat-bubble { padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.6; word-wrap: break-word; overflow-wrap: anywhere; box-sizing: border-box; }
             .chat-bubble.user { max-width: 82%; background: var(--accent); color: #fff; align-self: flex-end; border-bottom-right-radius: 2px; }
@@ -419,6 +426,7 @@
       model: selectedModel,
       messages: messages,
       stream: true,
+      stream_options: { include_usage: true }, // 请求接口在流末返回 token 用量
     };
 
     // 根据服务商组装思考模式参数
@@ -460,6 +468,7 @@
           let thinkStartTime = 0; // 思考（reasoning）首次出现的时间炳
           let thinkSeconds = 0; // 已思考秒数（一秒一秒跳动）
           let thinkTimer = null; // 思考计时器，每秒刷新标题
+          let usageInfo = null; // 接口返回的 token 用量（prompt/completion）
 
           // 解析一批 SSE 文本行，提取 reasoning/content 增量
           function processLines(lines) {
@@ -486,6 +495,7 @@
                   if (!receivedError) receivedError = "接口错误: " + msg;
                   continue;
                 }
+                if (data?.usage) usageInfo = data.usage; // 捕获 token 用量（可能在 delta 为空的末 chunk）
                 const delta = data?.choices?.[0]?.delta;
                 if (!delta) continue;
                 if (delta.reasoning_content) {
@@ -634,6 +644,7 @@
           doRender(true);
           isRequesting = false;
           currentRequest = null;
+          updateTokenBar(usageInfo, mainContent + reasoningContent);
           onComplete(mainContent || reasoningContent);
           updateChatSendButtonState();
         } catch (err) {
@@ -683,6 +694,21 @@
       btn.textContent = "发送";
       btn.disabled = false;
       textarea.placeholder = "向 AI 提问关于视频的内容...";
+    }
+  }
+
+  // 更新顶部 token 用量显示。优先用接口返回的 usage；若接口未返回则隐藏
+  function updateTokenBar(usage, outputText) {
+    const bar = document.getElementById("ai-token-bar");
+    if (!bar) return;
+    if (usage && (usage.prompt_tokens != null || usage.completion_tokens != null)) {
+      const input = usage.prompt_tokens ?? "?";
+      const output = usage.completion_tokens ?? "?";
+      bar.innerHTML = `<span title="输入 token（含字幕/对话上下文）">↑ 输入 ${input}</span>` +
+        `<span title="输出 token（模型回答）">↓ 输出 ${output}</span>`;
+      bar.style.display = "flex";
+    } else {
+      bar.style.display = "none";
     }
   }
 
@@ -889,6 +915,8 @@
                     <span class="ai-icon-btn" id="ai-minimize-btn" title="收起到侧边">➖</span>
                 </div>
             </div>
+
+            <div class="ai-token-bar" id="ai-token-bar" style="display:none;"></div>
 
             <div class="ai-panel-chat" id="ai-panel-chat">
                 <div class="chat-bubble system">准备就绪。</div>
@@ -1230,6 +1258,7 @@
                 '<div class="chat-bubble system">准备就绪。</div>';
               chatContainer.scrollTop = 0;
             }
+            updateTokenBar(null); // 切换视频，隐藏旧的 token 统计
             updateChatSendButtonState();
           }
         }

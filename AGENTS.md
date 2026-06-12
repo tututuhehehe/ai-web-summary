@@ -42,6 +42,7 @@
 - **特异性处理**：需要特别注意“思考/推理”模式（Reasoning）在不同厂商间 payload 的差异（例如阿里云的 `enable_thinking: true` vs DeepSeek 的 `thinking: { type: "enabled" }`），并在 UI 更新中将 `reasoning_content`（思考过程）与标准 `content`（正文）分开处理和渲染。
 - **思考框 UI 规范**：渲染 `reasoning_content` 的折叠框（`<details>`）必须**默认折叠**，不要默认展开。思考进行中（正文 `content` 尚未出现）时，折叠标题应显示**已思考秒数**并一秒一秒跳动（如“💭 思考中… (Ns)”，需用 setInterval 计时而非依赖 chunk 到达），让用户明确知道 AI 在思考而非卡死；思考结束后标题恢复为“💭 思考过程 (耗时 Ns)”，并需及时 clearInterval。
 - **生成终止 UI 规范**：大模型流式回复过程中，发送按钮应变为可点击的「终止」按钮（⏹），点击后调用 `abort()` 中断请求，保留已生成内容并追加「已终止」标记。
+- **Token 用量显示**：payload 需附加 `stream_options: { include_usage: true }`，以便接口在流末（通常是 delta 为空、仅含 `usage` 的 chunk）返回 `prompt_tokens`（输入）/`completion_tokens`（输出）。解析时需在 `if (!delta) continue` 之前捕获 `data.usage`。顶部 token 条优先展示接口返回的真实用量，接口未返回时隐藏。
 
 ## 5. Agent 执行指令
 当被要求修改代码或修复 bug 时，请务必遵守以下步骤：
