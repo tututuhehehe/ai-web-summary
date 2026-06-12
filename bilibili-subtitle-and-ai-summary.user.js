@@ -455,15 +455,15 @@
                 border-radius: 0 0 12px 12px;
             }
             .ai-chat-inputwrap {
-                flex: 1; display: flex; align-items: flex-end; min-height: 34px; box-sizing: border-box;
+                flex: 1; display: flex; align-items: flex-end; box-sizing: border-box;
                 background: var(--bg); border: 1px solid var(--border-2); border-radius: 17px;
-                padding: 3px 6px 3px 14px; transition: border-color 0.2s, box-shadow 0.2s;
+                padding: 4px 6px 4px 14px; transition: border-color 0.2s, box-shadow 0.2s;
             }
             .ai-chat-inputwrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0, 161, 214, 0.25); }
             .ai-chat-textarea {
-                flex: 1; height: 26px; min-height: 26px; max-height: 120px;
+                flex: 1; height: 24px; min-height: 24px; max-height: 120px;
                 background: transparent; border: none; color: var(--text);
-                padding: 3px 0; font-size: 13px; line-height: 20px; resize: none; outline: none;
+                padding: 0; font-size: 13px; line-height: 24px; resize: none; outline: none;
                 font-family: inherit;
             }
             .ai-chat-textarea::placeholder { color: var(--text-faint); }
@@ -1136,7 +1136,7 @@
     if (!text) return;
 
     inputEl.value = "";
-    inputEl.style.height = "26px";
+    inputEl.style.height = "24px";
     appendChatBubble("user", text);
 
     chatHistory.push({ role: "user", content: text });
@@ -1547,7 +1547,7 @@
 
     const textarea = document.getElementById("ai-chat-textarea");
     textarea.addEventListener("input", function () {
-      this.style.height = "26px";
+      this.style.height = "24px";
       this.style.height = this.scrollHeight + "px";
     });
 
