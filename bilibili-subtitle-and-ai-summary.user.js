@@ -715,6 +715,7 @@
           let thinkStartTime = 0; // 思考（reasoning）首次出现的时间炳
           let thinkSeconds = 0; // 已思考秒数（一秒一秒跳动）
           let thinkTimer = null; // 思考计时器，每秒刷新标题
+          let thinkOpen = false; // 思考框是否被用户展开（在流式重渲间保持）
           let usageInfo = null; // 接口返回的 token 用量（prompt/completion）
 
           // 解析一批 SSE 文本行，提取 reasoning/content 增量
@@ -804,7 +805,7 @@
                 ? `💭 思考中… (${thinkSeconds}s)`
                 : `💭 思考过程 (耗时 ${thinkSeconds}s)`;
               htmlParts.push(
-                `<details style="margin-bottom:8px;">` +
+                `<details class="ai-think-box"${thinkOpen ? " open" : ""} style="margin-bottom:8px;">` +
                   `<summary style="color:var(--text-mute);font-size:12px;cursor:pointer;user-select:none;">${summaryText}</summary>` +
                   `<div style="color:var(--text-faint);font-size:12px;padding:8px;background:var(--bg-think);border-radius:6px;margin-top:4px;white-space:pre-wrap;">${escapeHtml(reasoningContent)}</div></details>`,
               );
@@ -844,6 +845,14 @@
             if (isStale()) return; // 请求已作废或 bubble 已移除，不再写入
             if (assistantBubble) {
               assistantBubble.innerHTML = html;
+              // innerHTML 全量重写会清掉事件，重新绑定 toggle，把用户展开/折叠同步到 thinkOpen，
+              // 使流式过程中展开的思考框不会被下一帧重渲弹回
+              const det = assistantBubble.querySelector("details.ai-think-box");
+              if (det) {
+                det.addEventListener("toggle", () => {
+                  thinkOpen = det.open;
+                });
+              }
             } else {
               onChunk(html);
             }
