@@ -1288,6 +1288,14 @@
       return changed;
     }
 
+    function closeSettings() {
+      const box = document.getElementById("ai-panel-settings-container");
+      if (getComputedStyle(box).display === "none") return;
+      const changed = saveSettings();
+      box.style.display = "none";
+      if (changed) showInfoBar("✅ 设置已保存", "success", 1200);
+    }
+
     document
       .getElementById("ai-setting-toggle")
       .addEventListener("click", () => {
@@ -1295,14 +1303,22 @@
         // 初始隐藏由 CSS 类控制，内联 style.display 为空，需用 computed 判断真实状态
         const isOpen = getComputedStyle(box).display !== "none";
         if (isOpen) {
-          // 关闭设置面板时自动保存，仅在有改动时提示
-          const changed = saveSettings();
-          box.style.display = "none";
-          if (changed) showInfoBar("✅ 设置已保存", "success", 1200);
+          closeSettings();
         } else {
           box.style.display = "block";
         }
       });
+
+    // 设置面板打开时，点击面板内的非设置区域（聊天区/顶栏/输入区等）自动保存并关闭
+    panel.addEventListener("mousedown", (e) => {
+      const box = document.getElementById("ai-panel-settings-container");
+      if (getComputedStyle(box).display === "none") return;
+      const toggle = document.getElementById("ai-setting-toggle");
+      // 点击发生在设置面板内或设置齿轮上时不处理
+      if (box.contains(e.target) || (toggle && toggle.contains(e.target)))
+        return;
+      closeSettings();
+    });
 
     document
       .getElementById("ai-chat-send")
