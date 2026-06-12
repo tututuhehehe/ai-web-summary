@@ -11,6 +11,10 @@
 
 > 需先安装 [Tampermonkey](https://www.tampermonkey.net/) 或 [Violentmonkey](https://violentmonkey.github.io/) 用户脚本管理器，再点击上方链接安装。
 
+## 🎬 演示
+
+https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
+
 ## 脚本信息
 
 - 文件：`bilibili-subtitle-and-ai-summary.user.js`
