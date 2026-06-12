@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         B站字幕获取与AI助手 (沉浸式翻译/总结)
+// @name         B站字幕获取与AI总结助手
 // @namespace    https://github.com/tututuhehehe/ai-web-summary
 // @version      1.2.0
 // @author       limoon
@@ -1773,7 +1773,7 @@
     createAIPanel();
     createGlobalObserver();
     console.log(
-      `%c 🎬 B站字幕与AI助手 v${version} %c Cost ${Math.round(performance.now() - startTime)}ms`,
+      `%c 🎬 B站字幕获取与AI总结助手 v${version} %c Cost ${Math.round(performance.now() - startTime)}ms`,
       "background:#4A90E2;color:white;padding:2px 6px;border-radius:3px 0 0 3px;",
       "background:#50E3C2;color:#003333;padding:2px 6px;border-radius:0 3px 3px 0;",
     );
