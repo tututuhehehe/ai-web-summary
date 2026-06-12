@@ -112,6 +112,12 @@
 
   function addGlobalStyles() {
     if (document.getElementById("bili-ai-style")) return;
+    // 读取保存的侧栏位置，直接作为初始定位写进 CSS，避免首帧先居中再跳转的闪烁
+    const savedTop = GM_getValue("minTabTop", null);
+    const minTabPos =
+      typeof savedTop === "number"
+        ? `top: ${savedTop}px; transform: none;`
+        : `top: 50%; transform: translateY(-50%);`;
     const style = document.createElement("style");
     style.id = "bili-ai-style";
     style.textContent = `
@@ -179,7 +185,7 @@
 
             /* 常驻侧边栏样式 */
             #bili-ai-minimized {
-                position: fixed; right: 0; top: 50%; transform: translateY(-50%); width: 40px; height: 110px;
+                position: fixed; right: 0; ${minTabPos} width: 40px; height: 110px;
                 background-color: var(--bg); border: 1px solid var(--border); border-right: none; border-radius: 12px 0 0 12px;
                 box-shadow: -5px 5px 15px var(--shadow); z-index: 2147483646; display: flex;
                 flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
