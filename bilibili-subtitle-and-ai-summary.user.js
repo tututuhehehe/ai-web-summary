@@ -3,7 +3,8 @@
 // @namespace    https://github.com/tututuhehehe/ai-web-summary
 // @version      1.2.0
 // @author       limoon
-// @description  一键获取B站视频字幕，支持沉浸式AI对话、双模型切换、侧边栏收起、自定义总结Prompt，支持阿里云与DeepSeek官方接口切换
+// @description  B站视频/番剧字幕一键提取与AI智能总结。CC字幕复制、流式AI对话问答、视频内容摘要、双模型切换、思考(Reasoning)过程展示、Token用量统计、快捷键操作、明暗主题自适应。支持阿里云百炼、DeepSeek官方及任意OpenAI兼容接口。Bilibili视频字幕下载、AI总结、沉浸式翻译助手。
+// @description:en  One-click Bilibili subtitle extractor with AI summary. Copy CC subtitles, streaming AI chat, video summary, dual-model switch, reasoning/thinking display, token usage, hotkeys, dark/light theme. Supports Aliyun Bailian, DeepSeek and any OpenAI-compatible API.
 // @match        *://*.bilibili.com/video/*
 // @match        *://*.bilibili.com/bangumi/play/*
 // @icon         https://www.bilibili.com/favicon.ico
