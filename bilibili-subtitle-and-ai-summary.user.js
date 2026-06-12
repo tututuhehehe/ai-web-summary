@@ -429,6 +429,11 @@
             .ai-token-bar span { white-space: nowrap; }
 
             .ai-panel-chat { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; }
+            /* 隐藏面板内可滚动区域的滚动条（保留滚动功能） */
+            .ai-panel-chat::-webkit-scrollbar,
+            .ai-panel-settings::-webkit-scrollbar,
+            .chat-bubble.assistant pre::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+            .ai-panel-chat, .ai-panel-settings, .chat-bubble.assistant pre { scrollbar-width: none; -ms-overflow-style: none; }
             .chat-bubble { padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.6; word-wrap: break-word; overflow-wrap: anywhere; box-sizing: border-box; }
             .chat-bubble.user { max-width: 82%; background: var(--accent); color: #fff; align-self: flex-end; border-bottom-right-radius: 2px; }
             .chat-bubble.assistant { width: 100%; max-width: 100%; background: var(--bg-bubble); color: var(--text-2); align-self: stretch; border-bottom-left-radius: 2px; border: 1px solid var(--border); overflow: visible;}
