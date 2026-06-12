@@ -3,8 +3,8 @@
 // @namespace    https://github.com/tututuhehehe/ai-web-summary
 // @version      1.2.0
 // @author       limoon
-// @description  B站 bilibili 视频 总结 AI助手
-// @description:en  Bilibili video summary AI assistant
+// @description  B站 bilibili 视频 番剧 字幕 总结 摘要 AI助手 DeepSeek
+// @description:en  Bilibili video subtitle summary AI assistant (DeepSeek/OpenAI)
 // @match        *://*.bilibili.com/video/*
 // @match        *://*.bilibili.com/bangumi/play/*
 // @icon         https://www.bilibili.com/favicon.ico
