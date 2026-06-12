@@ -2,12 +2,12 @@
 
 > 面向 B 站视频和番剧页面的字幕提取、AI 总结与连续问答用户脚本。捕获当前视频的 CC 字幕作为上下文，通过兼容 OpenAI 接口的大语言模型生成结构化视频总结。
 
-[![GreasyFork](https://img.shields.io/badge/GreasyFork-安装脚本-blue.svg)](https://greasyfork.org/zh-CN/scripts/575450-b%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8Eai%E5%8A%A9%E6%89%8B-%E6%B2%89%E6%B5%B8%E5%BC%8F%E7%BF%BB%E8%AF%91-%E6%80%BB%E7%BB%93)
+[![GreasyFork](https://img.shields.io/badge/GreasyFork-安装脚本-blue.svg)](https://greasyfork.org/zh-CN/scripts/575450-b%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8Eai%E6%80%BB%E7%BB%93%E5%8A%A9%E6%89%8B)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 👉 一键安装
 
-**[点击这里前往 GreasyFork 安装脚本](https://greasyfork.org/zh-CN/scripts/575450-b%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8Eai%E5%8A%A9%E6%89%8B-%E6%B2%89%E6%B5%B8%E5%BC%8F%E7%BF%BB%E8%AF%91-%E6%80%BB%E7%BB%93)**
+**[点击这里前往 GreasyFork 安装脚本](https://greasyfork.org/zh-CN/scripts/575450-b%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8Eai%E6%80%BB%E7%BB%93%E5%8A%A9%E6%89%8B)**
 
 > 需先安装 [Tampermonkey](https://www.tampermonkey.net/) 或 [Violentmonkey](https://violentmonkey.github.io/) 用户脚本管理器，再点击上方链接安装。
 
@@ -38,7 +38,7 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 ## 安装与使用
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 或 [Violentmonkey](https://violentmonkey.github.io/)。
-2. 从 [GreasyFork](https://greasyfork.org/zh-CN/scripts/575450-b%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8Eai%E5%8A%A9%E6%89%8B-%E6%B2%89%E6%B5%B8%E5%BC%8F%E7%BF%BB%E8%AF%91-%E6%80%BB%E7%BB%93) 安装脚本。
+2. 从 [GreasyFork](https://greasyfork.org/zh-CN/scripts/575450-b%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8Eai%E6%80%BB%E7%BB%93%E5%8A%A9%E6%89%8B) 安装脚本。
 3. 打开带 CC 字幕的视频/番剧页，点击右侧 `AI总结`。
 4. 首次使用点右上角 ⚙️ 配置服务商、API Key、主/备模型、思考模式、自定义 Prompt。
 5. 关闭设置后脚本会自动加载字幕并生成总结，之后可在底部继续追问。
