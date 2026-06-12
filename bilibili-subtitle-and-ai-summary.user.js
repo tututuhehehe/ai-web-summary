@@ -76,6 +76,16 @@
   let subtitleAvailable = false; // 是否已检测到本视频字幕（决定“总结”按钮是否可点击）
   let subtitleDetectTimer = null; // 进入页面/切换后轮询检测字幕的定时器
 
+  // 根据是否检测到字幕，更新侧栏“AI总结”激发按钮的禁用观感（灰色+删除线）
+  function updateSummaryTabState() {
+    const minTab = document.getElementById("bili-ai-minimized");
+    if (!minTab) return;
+    minTab.classList.toggle("ai-disabled", !subtitleAvailable);
+    minTab.title = subtitleAvailable
+      ? "点击打开 AI 总结"
+      : "未检测到本视频字幕";
+  }
+
   // 进入视频页后轮询检测是否有字幕：3 秒内每 0.5s 检测一次，
   // 检测到则启用总结按钮并停止；超时仍无则保持灰色（不提示、不主动加载）
   function scheduleSubtitleDetection(interval = 500, maxDuration = 3000) {
@@ -85,6 +95,7 @@
       if (getSubtitleUrls().length > 0) {
         subtitleAvailable = true;
         updateChatSendButtonState();
+        updateSummaryTabState();
         clearInterval(subtitleDetectTimer);
         subtitleDetectTimer = null;
         return;
@@ -209,6 +220,8 @@
             }
             #bili-ai-minimized:hover { background-color: var(--bg-bubble); width: 45px; }
             #bili-ai-minimized span { color: var(--accent); font-size: 14px; font-weight: bold; writing-mode: vertical-lr; letter-spacing: 4px; text-align: center;}
+            #bili-ai-minimized.ai-disabled { cursor: not-allowed; opacity: 0.55; }
+            #bili-ai-minimized.ai-disabled span { color: var(--text-faint); text-decoration: line-through; text-decoration-thickness: 2px; }
 
             #bili-ai-panel {
                 position: fixed; right: 20px; top: 80px; width: 420px; height: 680px;
@@ -898,6 +911,7 @@
         handleAISummaryBtn();
       });
     });
+    updateSummaryTabState(); // 初始置为禁用观感，待检测到字幕后解除
 
     const panel = document.createElement("div");
     panel.id = "bili-ai-panel";
@@ -1250,6 +1264,7 @@
             currentSubtitle = "";
             chatHistory = [];
             subtitleAvailable = false; // 切换视频后重置，重新检测字幕
+            updateSummaryTabState(); // 立即置灰，避免沿用旧视频的可点击状态
 
             // Reset UI
             const chatContainer = document.getElementById("ai-panel-chat");
