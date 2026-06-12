@@ -714,6 +714,7 @@
           let mainContent = "";
 
           let committedMain = "";
+          let committedRendered = ""; // 已渲染到页面的 committed 文本，避免重复重写定稿部分
           let pendingMain = "";
           let rafId = null;
           let receivedError = "";
@@ -805,24 +806,38 @@
               return;
             }
 
-            // 推进 committed/pending 拆分
+            // 推进 committed/pending 拆分：将最后一个段落边界之前的内容定稿。
+            // 为避免把未闭合的代码块（```）从中间切断导致渲染错乱，
+            // 只有当拟定稿部分的反引号成对（偶数）时才提交。
             if (pendingMain && (isFinal || /\n\n/.test(pendingMain))) {
-              const splitAt = pendingMain.lastIndexOf("\n\n") + 2;
-              if (splitAt > 0) {
-                committedMain += pendingMain.slice(0, splitAt);
-                pendingMain = pendingMain.slice(splitAt);
-              } else if (isFinal) {
+              if (isFinal) {
                 committedMain += pendingMain;
                 pendingMain = "";
+              } else {
+                const splitAt = pendingMain.lastIndexOf("\n\n") + 2;
+                if (splitAt > 0) {
+                  const candidate = pendingMain.slice(0, splitAt);
+                  const fenceCount = (
+                    (committedMain + candidate).match(/```/g) || []
+                  ).length;
+                  if (fenceCount % 2 === 0) {
+                    committedMain += candidate;
+                    pendingMain = pendingMain.slice(splitAt);
+                  }
+                }
               }
             }
 
-            // 确保气泡内有思考槽与正文槽两个独立容器，只创建一次
+            // 确保气泡内有思考槽与正文槽两个独立容器，只创建一次。
+            // 正文槽再拆为 committed（已定稿、不再重写）+ pending（生成中、每帧重写），
+            // 让已输出的段落 DOM 保持稳定，流式中也能正常选中/复制
             let mainSlot = assistantBubble.querySelector(".ai-main-slot");
             if (!mainSlot) {
               assistantBubble.innerHTML =
-                '<div class="ai-think-slot"></div><div class="ai-main-slot"></div>';
+                '<div class="ai-think-slot"></div>' +
+                '<div class="ai-main-slot"><div class="ai-committed"></div><div class="ai-pending"></div></div>';
               mainSlot = assistantBubble.querySelector(".ai-main-slot");
+              committedRendered = ""; // 新容器，重置已渲染记录
             }
 
             // 思考框：增量更新，从不重建，保留用户展开/折叠状态
@@ -844,17 +859,26 @@
                 reasoningContent;
             }
 
-            // 正文：只重写正文槽，不影响思考框的 DOM 与展开状态
-            const parseSrc = committedMain + pendingMain;
-            if (parseSrc) {
-              mainSlot.innerHTML =
-                pendingMain && !isFinal
-                  ? marked.parse(parseSrc) +
+            // 正文：committed 部分仅在定稿增长时重渲染（保持已有 DOM 稳定，不打断选区）；
+            // pending 部分每帧重写。两者都不影响思考框。
+            const committedEl = mainSlot.querySelector(".ai-committed");
+            const pendingEl = mainSlot.querySelector(".ai-pending");
+            if (committedEl && committedMain !== committedRendered) {
+              committedRendered = committedMain;
+              committedEl.innerHTML = committedMain ? marked.parse(committedMain) : "";
+            }
+            if (pendingEl) {
+              if (pendingMain) {
+                pendingEl.innerHTML = !isFinal
+                  ? marked.parse(pendingMain) +
                     '<span style="color:var(--accent);opacity:0.6;">▍</span>'
-                  : marked.parse(parseSrc);
-            } else if (reasoningContent) {
-              mainSlot.innerHTML =
-                '<span style="color:var(--text-faint);">AI 深度思考中...</span>';
+                  : marked.parse(pendingMain);
+              } else if (!committedMain && reasoningContent) {
+                pendingEl.innerHTML =
+                  '<span style="color:var(--text-faint);">AI 深度思考中...</span>';
+              } else {
+                pendingEl.innerHTML = "";
+              }
             }
           }
 
