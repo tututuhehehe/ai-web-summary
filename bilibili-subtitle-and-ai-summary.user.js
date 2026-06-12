@@ -1266,6 +1266,7 @@
                 <div id="set-extrabody-row" style="margin: 4px 0 8px 0; display: ${aiConfig.provider === "custom" ? "block" : "none"};">
                     <div style="color: var(--text-mute); font-size: 12px; margin-bottom: 4px;">额外请求参数 extra_body (JSON，可选)：</div>
                     <textarea id="set-extrabody" class="ai-input" style="height: 60px; resize: vertical; margin-bottom: 0; font-family: monospace; font-size: 12px;" placeholder='例如：{"enable_thinking": true} 或 {"reasoning_effort": "high"}'>${escapeHtml(aiConfig.extraBody || "")}</textarea>
+                    <div id="set-extrabody-err" style="display:none; color: var(--err, #d9363e); font-size: 11px; margin-top: 4px;"></div>
                 </div>
                 <div style="margin: 0 0 4px 0; color: var(--text-mute);">自定义总结 Prompt:</div>
                 <textarea id="set-prompt" class="ai-input" style="height: 110px; resize: vertical; margin-bottom: 0;" placeholder="要求 AI 如何进行总结...">${aiConfig.prompt}</textarea>
@@ -1318,6 +1319,37 @@
 
       prevProvider = target;
     });
+
+    // extra_body JSON 格式校验：输入时实时提示，空内容视为合法
+    function validateExtraBody() {
+      const eb = document.getElementById("set-extrabody");
+      const err = document.getElementById("set-extrabody-err");
+      if (!eb || !err) return true;
+      const val = eb.value.trim();
+      if (!val) {
+        err.style.display = "none";
+        eb.style.borderColor = "";
+        return true;
+      }
+      try {
+        const parsed = JSON.parse(val);
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          throw new Error("需为 JSON 对象");
+        }
+        err.style.display = "none";
+        eb.style.borderColor = "";
+        return true;
+      } catch (e) {
+        err.textContent = "⚠️ JSON 格式错误：" + e.message;
+        err.style.display = "block";
+        eb.style.borderColor = "#d9363e";
+        return false;
+      }
+    }
+    document
+      .getElementById("set-extrabody")
+      .addEventListener("input", validateExtraBody);
+    validateExtraBody(); // 初始校验一次
 
     // 防止面板内滚动穿透到底层视频页面：在整个面板上统一拦截滚轮。
     // 找到事件路径上最近的可滚动容器；若存在且未到边界则放行，
