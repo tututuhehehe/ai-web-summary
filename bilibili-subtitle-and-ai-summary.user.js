@@ -45,10 +45,26 @@
       key: "ai_endpoint",
       def: ENDPOINTS.aliyun,
       el: "set-endpoint",
+      perProvider: true, // 按服务商分别存储
     },
-    apiKey: { key: "ai_api_key", def: "", el: "set-apikey" },
-    model1: { key: "ai_model1", def: "deepseek-v4-flash", el: "set-model1" },
-    model2: { key: "ai_model2", def: "deepseek-v4-pro", el: "set-model2" },
+    apiKey: {
+      key: "ai_api_key",
+      def: "",
+      el: "set-apikey",
+      perProvider: true, // 按服务商分别存储
+    },
+    model1: {
+      key: "ai_model1",
+      def: "deepseek-v4-flash",
+      el: "set-model1",
+      perProvider: true,
+    },
+    model2: {
+      key: "ai_model2",
+      def: "deepseek-v4-pro",
+      el: "set-model2",
+      perProvider: true,
+    },
     thinking: {
       key: "ai_thinking",
       def: false,
@@ -62,9 +78,99 @@
     },
   };
 
+  // 按服务商存储的配置项使用带后缀的 key，使三家各自保存 apiKey/endpoint/模型
+  function providerKey(baseKey, provider) {
+    return `${baseKey}_${provider}`;
+  }
+
+  // 各服务商的默认模型（首次未配置时使用）
+  const PROVIDER_DEFAULTS = {
+    aliyun: { model1: "qwen-plus", model2: "qwen-turbo" },
+    deepseek: { model1: "deepseek-chat", model2: "deepseek-reasoner" },
+    custom: { model1: "", model2: "" },
+  };
+
+  // 读取某服务商的 endpoint：aliyun/deepseek 为固定值，custom 读取保存值
+  function loadEndpoint(provider) {
+    if (provider === "aliyun") return ENDPOINTS.aliyun;
+    if (provider === "deepseek") return ENDPOINTS.deepseek;
+    return GM_getValue(providerKey("ai_endpoint", provider), "");
+  }
+
+  // 读取某服务商的按服务商配置项（apiKey/model1/model2）
+  function loadProviderValue(baseKey, provider, fallbackDef) {
+    const def =
+      (PROVIDER_DEFAULTS[provider] &&
+        PROVIDER_DEFAULTS[provider][
+          baseKey === "ai_model1"
+            ? "model1"
+            : baseKey === "ai_model2"
+              ? "model2"
+              : ""
+        ]) ??
+      fallbackDef;
+    return GM_getValue(providerKey(baseKey, provider), def);
+  }
+
+  // 加载指定服务商的全部按服务商配置到 aiConfig
+  function loadProviderConfig(provider) {
+    for (const k in CONFIG_DICT) {
+      const cfg = CONFIG_DICT[k];
+      if (!cfg.perProvider) continue;
+      if (k === "endpoint") {
+        aiConfig.endpoint = loadEndpoint(provider);
+      } else {
+        aiConfig[k] = loadProviderValue(cfg.key, provider, cfg.def);
+      }
+    }
+  }
+
+  // change 事件中填表用的便捷读取
+  function loadApiKey(provider) {
+    return GM_getValue(providerKey("ai_api_key", provider), "");
+  }
+  function loadModel(baseKey, provider) {
+    return loadProviderValue(
+      baseKey,
+      provider,
+      baseKey === "ai_model1"
+        ? CONFIG_DICT.model1.def
+        : CONFIG_DICT.model2.def,
+    );
+  }
+
   let aiConfig = {};
-  for (let k in CONFIG_DICT)
+  for (let k in CONFIG_DICT) {
+    if (CONFIG_DICT[k].perProvider) continue; // 按服务商的项随后加载
     aiConfig[k] = GM_getValue(CONFIG_DICT[k].key, CONFIG_DICT[k].def);
+  }
+
+  // 一次性迁移：旧版本 apiKey/endpoint 为全局单一存储，迁移到当前服务商的后缀 key
+  (function migrateLegacyConfig() {
+    if (GM_getValue("ai_config_migrated", false)) return;
+    const prov = aiConfig.provider;
+    const legacyKey = GM_getValue("ai_api_key", "");
+    if (legacyKey && !GM_getValue(providerKey("ai_api_key", prov), "")) {
+      GM_setValue(providerKey("ai_api_key", prov), legacyKey);
+    }
+    const legacyEp = GM_getValue("ai_endpoint", "");
+    if (
+      prov === "custom" &&
+      legacyEp &&
+      !GM_getValue(providerKey("ai_endpoint", "custom"), "")
+    ) {
+      GM_setValue(providerKey("ai_endpoint", "custom"), legacyEp);
+    }
+    for (const mk of ["ai_model1", "ai_model2"]) {
+      const legacyModel = GM_getValue(mk, "");
+      if (legacyModel && !GM_getValue(providerKey(mk, prov), "")) {
+        GM_setValue(providerKey(mk, prov), legacyModel);
+      }
+    }
+    GM_setValue("ai_config_migrated", true);
+  })();
+
+  loadProviderConfig(aiConfig.provider); // 按当前服务商加载 apiKey/endpoint/模型
 
   // 状态数据
   let currentSubtitle = "";
@@ -1066,20 +1172,32 @@
     document.body.appendChild(panel);
 
     // 设置栏：服务商切换事件绑定
-    document
-      .getElementById("set-provider")
-      .addEventListener("change", function () {
-        const epInput = document.getElementById("set-endpoint");
-        if (this.value === "aliyun") {
-          epInput.style.display = "none";
-          epInput.value = ENDPOINTS.aliyun;
-        } else if (this.value === "deepseek") {
-          epInput.style.display = "none";
-          epInput.value = ENDPOINTS.deepseek;
-        } else {
-          epInput.style.display = "block";
-        }
-      });
+    const provSelect = document.getElementById("set-provider");
+    let prevProvider = aiConfig.provider; // 记录切换前的服务商
+    provSelect.addEventListener("change", function () {
+      const apikeyInput = document.getElementById("set-apikey");
+      const epInput = document.getElementById("set-endpoint");
+      const m1Input = document.getElementById("set-model1");
+      const m2Input = document.getElementById("set-model2");
+
+      // 1) 先暂存切换前服务商在表单里的当前输入（避免切走后丢失未保存的修改）
+      GM_setValue(providerKey("ai_api_key", prevProvider), apikeyInput.value);
+      GM_setValue(providerKey("ai_model1", prevProvider), m1Input.value);
+      GM_setValue(providerKey("ai_model2", prevProvider), m2Input.value);
+      if (prevProvider === "custom") {
+        GM_setValue(providerKey("ai_endpoint", "custom"), epInput.value);
+      }
+
+      // 2) 加载目标服务商已存的配置填入表单
+      const target = this.value;
+      apikeyInput.value = loadApiKey(target);
+      m1Input.value = loadModel("ai_model1", target);
+      m2Input.value = loadModel("ai_model2", target);
+      epInput.value = loadEndpoint(target);
+      epInput.style.display = target === "custom" ? "block" : "none";
+
+      prevProvider = target;
+    });
 
     // 防止面板内滚动穿透到底层视频页面：在整个面板上统一拦截滚轮。
     // 找到事件路径上最近的可滚动容器；若存在且未到边界则放行，
@@ -1139,15 +1257,24 @@
     // 保存设置：读取面板表单写回 aiConfig 并持久化。仅在确实有改动时写入，返回是否发生了变更
     function saveSettings() {
       let changed = false;
+      // 当前面板选中的服务商（决定 perProvider 项存到哪个后缀）
+      const provEl = document.getElementById(CONFIG_DICT.provider.el);
+      const curProvider = provEl ? provEl.value : aiConfig.provider;
       for (let k in CONFIG_DICT) {
         const config = CONFIG_DICT[k];
         const el = document.getElementById(config.el);
         const newVal = config.isCheckbox ? el.checked : el.value;
-        if (newVal !== aiConfig[k]) {
-          aiConfig[k] = newVal;
+        if (newVal === aiConfig[k]) continue;
+        aiConfig[k] = newVal;
+        if (config.perProvider) {
+          // endpoint 对 aliyun/deepseek 为固定值，无需存储；其余按服务商后缀存
+          if (!(k === "endpoint" && curProvider !== "custom")) {
+            GM_setValue(providerKey(config.key, curProvider), newVal);
+          }
+        } else {
           GM_setValue(config.key, newVal);
-          changed = true;
         }
+        changed = true;
       }
 
       if (changed) {
