@@ -1336,10 +1336,31 @@
       .getElementById("ai-minimize-btn")
       .addEventListener("click", collapsePanel);
 
-    // 按 Esc 收起已弹出的面板；未弹出时不拦截（不影响 B 站原生 Esc 行为）
+    // 键盘快捷键：Esc 收起已弹出面板；s 快速唤起 AI 总结（输入状态不触发）
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && getComputedStyle(panel).display !== "none") {
         collapsePanel();
+        return;
+      }
+
+      // 在输入框/文本区/可编辑元素中打字，或带修饰键时不触发
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target;
+      const tag = t && t.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        (t && t.isContentEditable)
+      )
+        return;
+
+      if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        if (getComputedStyle(panel).display !== "none") return; // 已弹出则不重复
+        ensureSubtitleAndExecuteGlobal(() => {
+          handleAISummaryBtn();
+        });
       }
     });
 
