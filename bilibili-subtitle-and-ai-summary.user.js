@@ -707,7 +707,6 @@
           let reasoningContent = "";
           let mainContent = "";
 
-          let lastRenderedReasoning = "";
           let committedMain = "";
           let pendingMain = "";
           let rafId = null;
@@ -715,7 +714,6 @@
           let thinkStartTime = 0; // 思考（reasoning）首次出现的时间炳
           let thinkSeconds = 0; // 已思考秒数（一秒一秒跳动）
           let thinkTimer = null; // 思考计时器，每秒刷新标题
-          let thinkOpen = false; // 思考框是否被用户展开（在流式重渲间保持）
           let usageInfo = null; // 接口返回的 token 用量（prompt/completion）
 
           // 解析一批 SSE 文本行，提取 reasoning/content 增量
@@ -757,7 +755,6 @@
                       );
                       // 正文尚未出现时才需持续刷新思考秒数
                       if (!mainContent) {
-                        lastRenderedReasoning = null; // 强制重渲染标题
                         doRender(false);
                       }
                     }, 1000);
@@ -783,7 +780,6 @@
             if (thinkStartTime) {
               thinkSeconds = Math.floor((Date.now() - thinkStartTime) / 1000);
             }
-            lastRenderedReasoning = null; // 强制下次重渲染标题（思考中→思考过程）
           }
 
           function scheduleRender() {
@@ -795,25 +791,15 @@
           }
 
           function doRender(isFinal) {
-            let htmlParts = [];
+            if (isStale()) return; // 请求已作废或 bubble 已移除，不再写入
 
-            if (reasoningContent && reasoningContent !== lastRenderedReasoning) {
-              lastRenderedReasoning = reasoningContent;
-              // 思考框始终默认折叠；思考进行中（正文还未出现）在标题行提示已思考秒数，让用户知道没卡住
-              const thinking = !isFinal && !mainContent;
-              const summaryText = thinking
-                ? `💭 思考中… (${thinkSeconds}s)`
-                : `💭 思考过程 (耗时 ${thinkSeconds}s)`;
-              htmlParts.push(
-                `<details class="ai-think-box"${thinkOpen ? " open" : ""} style="margin-bottom:8px;">` +
-                  `<summary style="color:var(--text-mute);font-size:12px;cursor:pointer;user-select:none;">${summaryText}</summary>` +
-                  `<div style="color:var(--text-faint);font-size:12px;padding:8px;background:var(--bg-think);border-radius:6px;margin-top:4px;white-space:pre-wrap;">${escapeHtml(reasoningContent)}</div></details>`,
-              );
-            } else {
-              const existing = assistantBubble?.querySelector("details");
-              if (existing) htmlParts.push(existing.outerHTML);
+            // 无 bubble 场景（当前代码路径未使用，保留兼容）：拼接完整 HTML 回传
+            if (!assistantBubble) {
+              renderViaOnChunk(isFinal);
+              return;
             }
 
+            // 推进 committed/pending 拆分
             if (pendingMain && (isFinal || /\n\n/.test(pendingMain))) {
               const splitAt = pendingMain.lastIndexOf("\n\n") + 2;
               if (splitAt > 0) {
@@ -825,37 +811,73 @@
               }
             }
 
-            const parseSrc = committedMain + pendingMain;
-            if (parseSrc) {
-              if (pendingMain && !isFinal) {
-                htmlParts.push(
-                  marked.parse(parseSrc) +
-                    '<span style="color:var(--accent);opacity:0.6;">▍</span>',
-                );
-              } else {
-                htmlParts.push(marked.parse(parseSrc));
-              }
-            } else if (reasoningContent) {
-              htmlParts.push(
-                '<span style="color:var(--text-faint);">AI 深度思考中...</span>',
-              );
+            // 确保气泡内有思考槽与正文槽两个独立容器，只创建一次
+            let mainSlot = assistantBubble.querySelector(".ai-main-slot");
+            if (!mainSlot) {
+              assistantBubble.innerHTML =
+                '<div class="ai-think-slot"></div><div class="ai-main-slot"></div>';
+              mainSlot = assistantBubble.querySelector(".ai-main-slot");
             }
 
-            const html = htmlParts.join("");
-            if (isStale()) return; // 请求已作废或 bubble 已移除，不再写入
-            if (assistantBubble) {
-              assistantBubble.innerHTML = html;
-              // innerHTML 全量重写会清掉事件，重新绑定 toggle，把用户展开/折叠同步到 thinkOpen，
-              // 使流式过程中展开的思考框不会被下一帧重渲弹回
-              const det = assistantBubble.querySelector("details.ai-think-box");
-              if (det) {
-                det.addEventListener("toggle", () => {
-                  thinkOpen = det.open;
-                });
+            // 思考框：增量更新，从不重建，保留用户展开/折叠状态
+            if (reasoningContent) {
+              const thinkSlot = assistantBubble.querySelector(".ai-think-slot");
+              let det = thinkSlot.querySelector("details.ai-think-box");
+              if (!det) {
+                thinkSlot.innerHTML =
+                  `<details class="ai-think-box" style="margin-bottom:8px;">` +
+                  `<summary class="ai-think-summary" style="color:var(--text-mute);font-size:12px;cursor:pointer;user-select:none;"></summary>` +
+                  `<div class="ai-think-content" style="color:var(--text-faint);font-size:12px;padding:8px;background:var(--bg-think);border-radius:6px;margin-top:4px;white-space:pre-wrap;"></div></details>`;
+                det = thinkSlot.querySelector("details.ai-think-box");
               }
-            } else {
-              onChunk(html);
+              const thinking = !isFinal && !mainContent;
+              det.querySelector(".ai-think-summary").textContent = thinking
+                ? `💭 思考中… (${thinkSeconds}s)`
+                : `💭 思考过程 (耗时 ${thinkSeconds}s)`;
+              det.querySelector(".ai-think-content").textContent =
+                reasoningContent;
             }
+
+            // 正文：只重写正文槽，不影响思考框的 DOM 与展开状态
+            const parseSrc = committedMain + pendingMain;
+            if (parseSrc) {
+              mainSlot.innerHTML =
+                pendingMain && !isFinal
+                  ? marked.parse(parseSrc) +
+                    '<span style="color:var(--accent);opacity:0.6;">▍</span>'
+                  : marked.parse(parseSrc);
+            } else if (reasoningContent) {
+              mainSlot.innerHTML =
+                '<span style="color:var(--text-faint);">AI 深度思考中...</span>';
+            }
+          }
+
+          // 兼容旧的无 bubble 调用方：拼接完整 HTML 交给 onChunk
+          function renderViaOnChunk(isFinal) {
+            let htmlParts = [];
+            if (reasoningContent) {
+              const thinking = !isFinal && !mainContent;
+              const summaryText = thinking
+                ? `💭 思考中… (${thinkSeconds}s)`
+                : `💭 思考过程 (耗时 ${thinkSeconds}s)`;
+              htmlParts.push(
+                `<details style="margin-bottom:8px;"><summary style="color:var(--text-mute);font-size:12px;">${summaryText}</summary>` +
+                  `<div style="color:var(--text-faint);font-size:12px;padding:8px;background:var(--bg-think);border-radius:6px;margin-top:4px;white-space:pre-wrap;">${escapeHtml(reasoningContent)}</div></details>`,
+              );
+            }
+            if (pendingMain && (isFinal || /\n\n/.test(pendingMain))) {
+              const splitAt = pendingMain.lastIndexOf("\n\n") + 2;
+              if (splitAt > 0) {
+                committedMain += pendingMain.slice(0, splitAt);
+                pendingMain = pendingMain.slice(splitAt);
+              } else if (isFinal) {
+                committedMain += pendingMain;
+                pendingMain = "";
+              }
+            }
+            const parseSrc = committedMain + pendingMain;
+            if (parseSrc) htmlParts.push(marked.parse(parseSrc));
+            onChunk(htmlParts.join(""));
           }
 
           while (true) {
