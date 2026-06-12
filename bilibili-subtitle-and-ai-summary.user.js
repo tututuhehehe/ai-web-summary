@@ -185,6 +185,7 @@
                 flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
             }
             #bili-ai-minimized:hover { background-color: var(--bg-bubble); width: 45px; }
+            #bili-ai-minimized.dragging { transition: none; width: 40px; cursor: grabbing; }
             #bili-ai-minimized span { color: var(--accent); font-size: 14px; font-weight: bold; writing-mode: vertical-lr; letter-spacing: 4px; text-align: center;}
 
             #bili-ai-panel {
@@ -941,6 +942,7 @@
       if (!dragging) return;
       const dy = e.clientY - startY;
       if (!moved && Math.abs(dy) < 5) return; // 小于阈值不算拖拽
+      if (!moved) minTab.classList.add("dragging"); // 首次超阈值：关掉 transition 使其跟手
       moved = true;
       const h = minTab.offsetHeight;
       const top = Math.max(0, Math.min(originTop + dy, window.innerHeight - h));
@@ -951,6 +953,7 @@
     document.addEventListener("mouseup", () => {
       if (!dragging) return;
       dragging = false;
+      minTab.classList.remove("dragging");
       if (moved) {
         GM_setValue("minTabTop", minTab.getBoundingClientRect().top); // 持久化，切换视频后保留
       }
