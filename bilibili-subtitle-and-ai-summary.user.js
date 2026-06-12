@@ -240,13 +240,37 @@
             .chat-bubble.assistant th { background-color: var(--bg-code); color: var(--accent); font-weight: bold; }
             .chat-bubble.assistant tr:nth-child(even) { background-color: var(--row-stripe); }
 
-            .ai-panel-input-area { padding: 12px; border-top: 1px solid var(--border); background: var(--bg-elev); display: flex; gap: 8px; border-radius: 0 0 12px 12px;}
-            .ai-chat-textarea { flex: 1; height: 36px; min-height: 36px; max-height: 100px; background: var(--bg); border: 1px solid var(--border-2); color: var(--text); border-radius: 6px; padding: 8px; font-size: 13px; resize: none; outline: none; font-family: inherit;}
-            .ai-chat-send { background: var(--accent); color: #fff; border: none; padding: 0 16px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s;}
+            .ai-panel-input-area {
+                padding: 10px 12px; border-top: 1px solid var(--border); background: var(--bg-elev);
+                display: flex; align-items: flex-end; gap: 8px;
+                border-radius: 0 0 12px 12px;
+            }
+            .ai-chat-inputwrap {
+                flex: 1; display: flex; align-items: flex-end;
+                background: var(--bg); border: 1px solid var(--border-2); border-radius: 20px;
+                padding: 4px 6px 4px 14px; transition: border-color 0.2s, box-shadow 0.2s;
+            }
+            .ai-chat-inputwrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0, 161, 214, 0.25); }
+            .ai-chat-textarea {
+                flex: 1; height: 28px; min-height: 28px; max-height: 120px;
+                background: transparent; border: none; color: var(--text);
+                padding: 4px 0; font-size: 13px; line-height: 20px; resize: none; outline: none;
+                font-family: inherit;
+            }
+            .ai-chat-textarea::placeholder { color: var(--text-faint); }
+            .ai-chat-send {
+                flex: none; width: 34px; height: 34px; padding: 0;
+                display: inline-flex; align-items: center; justify-content: center;
+                background: var(--accent); color: #fff; border: none; border-radius: 50%;
+                cursor: pointer; font-size: 16px; line-height: 1;
+                transition: background 0.2s, transform 0.1s;
+            }
             .ai-chat-send:hover { background: var(--accent-hover); }
+            .ai-chat-send:active { transform: scale(0.92); }
             .ai-chat-send:disabled { background: var(--border-2); color: var(--text-faint); cursor: not-allowed; }
-            .ai-chat-send.ai-chat-stop { background: #d9363e; color: #fff; font-size: 18px; padding: 0 14px; }
+            .ai-chat-send.ai-chat-stop { background: #d9363e; font-size: 15px; }
             .ai-chat-send.ai-chat-stop:hover { background: #f5222d; }
+            .ai-chat-send.ai-chat-pill { width: auto; border-radius: 17px; padding: 0 16px; height: 34px; font-size: 13px; font-weight: bold; }
 
             .ai-regen-btn {
                 display: inline-flex; align-items: center; gap: 4px; margin-top: 10px;
@@ -685,22 +709,29 @@
       btn.title = "终止生成";
       btn.disabled = false;
       btn.classList.add("ai-chat-stop");
+      btn.classList.remove("ai-chat-pill");
       return;
     }
 
     btn.classList.remove("ai-chat-stop");
     btn.title = "";
     if (!aiConfig.apiKey || aiConfig.apiKey.trim() === "") {
-      btn.textContent = "发送";
+      btn.textContent = "↑";
+      btn.title = "发送";
       btn.disabled = true;
+      btn.classList.remove("ai-chat-pill");
       textarea.placeholder = "请先配置 API Key...";
     } else if (chatHistory.length === 0) {
       btn.textContent = "总结";
+      btn.title = "生成视频总结";
       btn.disabled = false;
+      btn.classList.add("ai-chat-pill"); // 总结态：带文字的胶囊按钮
       textarea.placeholder = "点击“总结”获取视频内容总结...";
     } else {
-      btn.textContent = "发送";
+      btn.textContent = "↑";
+      btn.title = "发送";
       btn.disabled = false;
+      btn.classList.remove("ai-chat-pill");
       textarea.placeholder = "向 AI 提问关于视频的内容...";
     }
   }
@@ -864,7 +895,7 @@
     if (!text) return;
 
     inputEl.value = "";
-    inputEl.style.height = "36px";
+    inputEl.style.height = "28px";
     appendChatBubble("user", text);
 
     chatHistory.push({ role: "user", content: text });
@@ -1028,8 +1059,10 @@
             </div>
 
             <div class="ai-panel-input-area">
-                <textarea id="ai-chat-textarea" class="ai-chat-textarea" placeholder="向 AI 提问关于视频的内容..."></textarea>
-                <button id="ai-chat-send" class="ai-chat-send">发送</button>
+                <div class="ai-chat-inputwrap">
+                    <textarea id="ai-chat-textarea" class="ai-chat-textarea" placeholder="向 AI 提问关于视频的内容..."></textarea>
+                </div>
+                <button id="ai-chat-send" class="ai-chat-send" title="发送">↑</button>
             </div>
         `;
     document.body.appendChild(panel);
@@ -1160,7 +1193,7 @@
 
     const textarea = document.getElementById("ai-chat-textarea");
     textarea.addEventListener("input", function () {
-      this.style.height = "36px";
+      this.style.height = "28px";
       this.style.height = this.scrollHeight + "px";
     });
 
