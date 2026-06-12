@@ -1357,10 +1357,14 @@
 
       if (e.key === "s" || e.key === "S") {
         e.preventDefault();
-        if (getComputedStyle(panel).display !== "none") return; // 已弹出则不重复
-        ensureSubtitleAndExecuteGlobal(() => {
-          handleAISummaryBtn();
-        });
+        // s 切换：已弹出则收起，未弹出则唤起
+        if (getComputedStyle(panel).display !== "none") {
+          collapsePanel();
+        } else {
+          ensureSubtitleAndExecuteGlobal(() => {
+            handleAISummaryBtn();
+          });
+        }
       }
     });
 
