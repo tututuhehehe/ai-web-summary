@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站字幕获取与AI助手 (沉浸式翻译/总结)
 // @namespace    https://github.com/tututuhehehe/ai-web-summary
-// @version      1.1.3
+// @version      1.2.0
 // @author       limoon
 // @description  一键获取B站视频字幕，支持沉浸式AI对话、双模型切换、侧边栏收起、自定义总结Prompt，支持阿里云与DeepSeek官方接口切换
 // @match        *://*.bilibili.com/video/*
