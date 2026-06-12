@@ -71,6 +71,12 @@
       el: "set-thinking",
       isCheckbox: true,
     },
+    extraBody: {
+      key: "ai_extra_body",
+      def: "",
+      el: "set-extrabody",
+      perProvider: true, // 仅自定义服务商使用：额外 payload 参数（JSON）
+    },
     prompt: {
       key: "ai_custom_prompt",
       def: `视频总结 Agent System Prompt
@@ -670,11 +676,17 @@
     } else if (aiConfig.provider === "deepseek") {
       payload.thinking = { type: aiConfig.thinking ? "enabled" : "disabled" };
     } else {
-      // 自定义厂商，如果包含这两个特征域名，也尝试附加上下文
-      if (aiConfig.endpoint.includes("dashscope"))
-        payload.enable_thinking = aiConfig.thinking;
-      if (aiConfig.endpoint.includes("deepseek.com"))
-        payload.thinking = { type: aiConfig.thinking ? "enabled" : "disabled" };
+      // 自定义服务商：不用思考开关，改为合并用户填写的 extra_body JSON
+      if (aiConfig.extraBody && aiConfig.extraBody.trim()) {
+        try {
+          const extra = JSON.parse(aiConfig.extraBody);
+          if (extra && typeof extra === "object" && !Array.isArray(extra)) {
+            Object.assign(payload, extra);
+          }
+        } catch (e) {
+          // JSON 解析失败时忽略（不中断请求），由用户自行检查格式
+        }
+      }
     }
 
     currentRequest = GM_xmlhttpRequest({
@@ -1245,11 +1257,15 @@
                     <input type="text" id="set-model1" class="ai-input" value="${aiConfig.model1}" placeholder="主模型">
                     <input type="text" id="set-model2" class="ai-input" value="${aiConfig.model2}" placeholder="备用模型">
                 </div>
-                <div style="margin: 4px 0 8px 0;">
+                <div id="set-thinking-row" style="margin: 4px 0 8px 0; display: ${aiConfig.provider === "custom" ? "none" : "block"};">
                     <label style="color:var(--text); font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px;">
                         <input type="checkbox" id="set-thinking" ${aiConfig.thinking ? "checked" : ""}>
                         开启思考模式 (Reasoning)
                     </label>
+                </div>
+                <div id="set-extrabody-row" style="margin: 4px 0 8px 0; display: ${aiConfig.provider === "custom" ? "block" : "none"};">
+                    <div style="color: var(--text-mute); font-size: 12px; margin-bottom: 4px;">额外请求参数 extra_body (JSON，可选)：</div>
+                    <textarea id="set-extrabody" class="ai-input" style="height: 60px; resize: vertical; margin-bottom: 0; font-family: monospace; font-size: 12px;" placeholder='例如：{"enable_thinking": true} 或 {"reasoning_effort": "high"}'>${escapeHtml(aiConfig.extraBody || "")}</textarea>
                 </div>
                 <div style="margin: 0 0 4px 0; color: var(--text-mute);">自定义总结 Prompt:</div>
                 <textarea id="set-prompt" class="ai-input" style="height: 110px; resize: vertical; margin-bottom: 0;" placeholder="要求 AI 如何进行总结...">${aiConfig.prompt}</textarea>
@@ -1273,6 +1289,9 @@
       const epInput = document.getElementById("set-endpoint");
       const m1Input = document.getElementById("set-model1");
       const m2Input = document.getElementById("set-model2");
+      const ebInput = document.getElementById("set-extrabody");
+      const thinkRow = document.getElementById("set-thinking-row");
+      const ebRow = document.getElementById("set-extrabody-row");
 
       // 1) 先暂存切换前服务商在表单里的当前输入（避免切走后丢失未保存的修改）
       GM_setValue(providerKey("ai_api_key", prevProvider), apikeyInput.value);
@@ -1280,6 +1299,7 @@
       GM_setValue(providerKey("ai_model2", prevProvider), m2Input.value);
       if (prevProvider === "custom") {
         GM_setValue(providerKey("ai_endpoint", "custom"), epInput.value);
+        GM_setValue(providerKey("ai_extra_body", "custom"), ebInput.value);
       }
 
       // 2) 加载目标服务商已存的配置填入表单
@@ -1288,7 +1308,13 @@
       m1Input.value = loadModel("ai_model1", target);
       m2Input.value = loadModel("ai_model2", target);
       epInput.value = loadEndpoint(target);
-      epInput.style.display = target === "custom" ? "block" : "none";
+      ebInput.value = GM_getValue(providerKey("ai_extra_body", target), "");
+
+      // 3) 自定义服务商：显示 endpoint + extra_body，隐藏思考勾选；其余相反
+      const isCustom = target === "custom";
+      epInput.style.display = isCustom ? "block" : "none";
+      ebRow.style.display = isCustom ? "block" : "none";
+      thinkRow.style.display = isCustom ? "none" : "block";
 
       prevProvider = target;
     });
