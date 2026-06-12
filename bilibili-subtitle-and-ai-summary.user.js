@@ -1734,6 +1734,14 @@
             updateTokenBar(null); // 切换视频，隐藏旧的 token 统计
             resetSessionTokens(); // 新视频是新会话，累计清零
             updateChatSendButtonState();
+
+            // 切换视频时若面板未收起，自动收起回侧栏
+            const aiPanel = document.getElementById("bili-ai-panel");
+            const minTab = document.getElementById("bili-ai-minimized");
+            if (aiPanel && minTab && getComputedStyle(aiPanel).display !== "none") {
+              aiPanel.style.display = "none";
+              minTab.style.display = "flex";
+            }
           }
         }
       }, 50);
