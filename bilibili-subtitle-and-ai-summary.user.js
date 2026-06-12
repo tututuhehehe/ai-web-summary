@@ -246,15 +246,15 @@
                 border-radius: 0 0 12px 12px;
             }
             .ai-chat-inputwrap {
-                flex: 1; display: flex; align-items: flex-end;
-                background: var(--bg); border: 1px solid var(--border-2); border-radius: 20px;
-                padding: 4px 6px 4px 14px; transition: border-color 0.2s, box-shadow 0.2s;
+                flex: 1; display: flex; align-items: flex-end; min-height: 34px; box-sizing: border-box;
+                background: var(--bg); border: 1px solid var(--border-2); border-radius: 17px;
+                padding: 3px 6px 3px 14px; transition: border-color 0.2s, box-shadow 0.2s;
             }
             .ai-chat-inputwrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0, 161, 214, 0.25); }
             .ai-chat-textarea {
-                flex: 1; height: 28px; min-height: 28px; max-height: 120px;
+                flex: 1; height: 26px; min-height: 26px; max-height: 120px;
                 background: transparent; border: none; color: var(--text);
-                padding: 4px 0; font-size: 13px; line-height: 20px; resize: none; outline: none;
+                padding: 3px 0; font-size: 13px; line-height: 20px; resize: none; outline: none;
                 font-family: inherit;
             }
             .ai-chat-textarea::placeholder { color: var(--text-faint); }
@@ -581,7 +581,7 @@
           function doRender(isFinal) {
             let htmlParts = [];
 
-            if (reasoningContent !== lastRenderedReasoning) {
+            if (reasoningContent && reasoningContent !== lastRenderedReasoning) {
               lastRenderedReasoning = reasoningContent;
               // 思考框始终默认折叠；思考进行中（正文还未出现）在标题行提示已思考秒数，让用户知道没卡住
               const thinking = !isFinal && !mainContent;
@@ -855,17 +855,12 @@
     chatHistory.push({ role: "system", content: systemPrompt });
     chatHistory.push({ role: "user", content: userPrompt });
 
-    appendChatBubble("system", "正在阅读视频字幕并生成总结...");
     const assistantBubble = appendChatBubble(
       "assistant",
       '<span style="color:var(--text-faint);">AI 响应中...</span>',
     );
 
-    runChatStream(assistantBubble, () => {
-      document
-        .getElementById("ai-panel-chat")
-        .querySelector(".system").textContent = "总结完成，您可以继续提问👇";
-    });
+    runChatStream(assistantBubble);
   }
 
   function handleSendChat() {
@@ -895,7 +890,7 @@
     if (!text) return;
 
     inputEl.value = "";
-    inputEl.style.height = "28px";
+    inputEl.style.height = "26px";
     appendChatBubble("user", text);
 
     chatHistory.push({ role: "user", content: text });
@@ -1193,7 +1188,7 @@
 
     const textarea = document.getElementById("ai-chat-textarea");
     textarea.addEventListener("input", function () {
-      this.style.height = "28px";
+      this.style.height = "26px";
       this.style.height = this.scrollHeight + "px";
     });
 
