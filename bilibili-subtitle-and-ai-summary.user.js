@@ -221,7 +221,7 @@
             #bili-ai-minimized:hover { background-color: var(--bg-bubble); width: 45px; }
             #bili-ai-minimized span { color: var(--accent); font-size: 14px; font-weight: bold; writing-mode: vertical-lr; letter-spacing: 4px; text-align: center;}
             #bili-ai-minimized.ai-disabled { cursor: not-allowed; opacity: 0.55; }
-            #bili-ai-minimized.ai-disabled span { color: var(--text-faint); text-decoration: line-through; text-decoration-thickness: 2px; }
+            #bili-ai-minimized.ai-disabled span { color: var(--text-faint); }
 
             #bili-ai-panel {
                 position: fixed; right: 20px; top: 80px; width: 420px; height: 680px;
@@ -266,7 +266,7 @@
             .ai-chat-textarea { flex: 1; height: 36px; min-height: 36px; max-height: 100px; background: var(--bg); border: 1px solid var(--border-2); color: var(--text); border-radius: 6px; padding: 8px; font-size: 13px; resize: none; outline: none; font-family: inherit;}
             .ai-chat-send { background: var(--accent); color: #fff; border: none; padding: 0 16px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s;}
             .ai-chat-send:hover { background: var(--accent-hover); }
-            .ai-chat-send:disabled { background: var(--border-2); color: var(--text-faint); cursor: not-allowed; text-decoration: line-through; text-decoration-thickness: 2px; }
+            .ai-chat-send:disabled { background: var(--border-2); color: var(--text-faint); cursor: not-allowed; }
             .ai-chat-send.ai-chat-stop { background: #d9363e; color: #fff; font-size: 18px; padding: 0 14px; }
             .ai-chat-send.ai-chat-stop:hover { background: #f5222d; }
 
