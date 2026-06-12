@@ -1027,9 +1027,19 @@
     );
 
     // 面板内按键事件
-    document.getElementById("ai-minimize-btn").addEventListener("click", () => {
+    function collapsePanel() {
       panel.style.display = "none";
       minTab.style.display = "flex";
+    }
+    document
+      .getElementById("ai-minimize-btn")
+      .addEventListener("click", collapsePanel);
+
+    // 按 Esc 收起已弹出的面板；未弹出时不拦截（不影响 B 站原生 Esc 行为）
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && getComputedStyle(panel).display !== "none") {
+        collapsePanel();
+      }
     });
 
     document.getElementById("ai-refresh-btn").addEventListener("click", () => {
