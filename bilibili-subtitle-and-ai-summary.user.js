@@ -1260,7 +1260,8 @@
                     </select>
                     <input type="password" id="set-apikey" class="ai-input" style="width: 62%;" value="${aiConfig.apiKey}" placeholder="API Key (sk-...)">
                 </div>
-                <input type="text" id="set-endpoint" class="ai-input" value="${aiConfig.endpoint}" placeholder="自定义 API Endpoint" style="display: ${aiConfig.provider === "custom" ? "block" : "none"};">
+                <input type="text" id="set-endpoint" class="ai-input" value="${aiConfig.endpoint}" placeholder="https://api.openai.com/v1/chat/completions" style="display: ${aiConfig.provider === "custom" ? "block" : "none"};">
+                <div id="set-endpoint-hint" style="display: ${aiConfig.provider === "custom" ? "block" : "none"}; color: var(--text-faint); font-size: 11px; margin: 2px 0 4px 0;">请填写完整的 Chat Completions 地址，例如：https://api.openai.com/v1/chat/completions</div>
 
                 <div class="ai-settings-row">
                     <input type="text" id="set-model1" class="ai-input" value="${aiConfig.model1}" placeholder="主模型">
@@ -1323,6 +1324,8 @@
       // 3) 自定义服务商：显示 endpoint + extra_body，隐藏思考勾选；其余相反
       const isCustom = target === "custom";
       epInput.style.display = isCustom ? "block" : "none";
+      const epHint = document.getElementById("set-endpoint-hint");
+      if (epHint) epHint.style.display = isCustom ? "block" : "none";
       ebRow.style.display = isCustom ? "block" : "none";
       thinkRow.style.display = isCustom ? "none" : "block";
 
