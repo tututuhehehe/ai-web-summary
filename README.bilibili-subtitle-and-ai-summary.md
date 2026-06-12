@@ -5,6 +5,12 @@
 [![GreasyFork](https://img.shields.io/badge/GreasyFork-安装脚本-blue.svg)](https://greasyfork.org/zh-CN/scripts/575450-b%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8Eai%E5%8A%A9%E6%89%8B-%E6%B2%89%E6%B5%B8%E5%BC%8F%E7%BF%BB%E8%AF%91-%E6%80%BB%E7%BB%93)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+## 👉 一键安装
+
+**[点击这里前往 GreasyFork 安装脚本](https://greasyfork.org/zh-CN/scripts/575450-b%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8Eai%E5%8A%A9%E6%89%8B-%E6%B2%89%E6%B5%B8%E5%BC%8F%E7%BF%BB%E8%AF%91-%E6%80%BB%E7%BB%93)**
+
+> 需先安装 [Tampermonkey](https://www.tampermonkey.net/) 或 [Violentmonkey](https://violentmonkey.github.io/) 用户脚本管理器，再点击上方链接安装。
+
 ## 脚本信息
 
 - 文件：`bilibili-subtitle-and-ai-summary.user.js`
