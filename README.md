@@ -35,7 +35,7 @@
 
 2. 安装需要的脚本：
    - B 站脚本可从 GreasyFork 安装：
-     [B站字幕获取与AI总结助手](https://greasyfork.org/zh-CN/scripts/575450-b%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8Eai%E6%80%BB%E7%BB%93%E5%8A%A9%E6%89%8B)
+     [B站字幕获取与AI总结助手](https://greasyfork.org/zh-CN/scripts/575450)
    - 微信公众号脚本可在脚本管理器中新建脚本，然后粘贴 `wx-article-ai-summary.user.js` 的完整内容。
 
 3. 打开目标页面后，点击页面右侧的 `AI总结` 侧边按钮。
