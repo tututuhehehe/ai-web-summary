@@ -231,7 +231,10 @@
             .chat-bubble.assistant h1, .chat-bubble.assistant h2, .chat-bubble.assistant h3, .chat-bubble.assistant h4, .chat-bubble.assistant h5, .chat-bubble.assistant h6 { color: var(--text-strong); margin-top: 0; margin-bottom: 8px; font-size: 15px; }
             .chat-bubble.assistant p { margin: 0 0 8px 0; }
             .chat-bubble.assistant p:last-child { margin: 0; }
-            .chat-bubble.assistant ul, .chat-bubble.assistant ol { margin: 0 0 8px 0; padding-left: 20px; }
+            .chat-bubble.assistant ul, .chat-bubble.assistant ol { margin: 0 0 8px 0; padding-left: 22px; }
+            .chat-bubble.assistant ul { list-style: disc outside; }
+            .chat-bubble.assistant ol { list-style: decimal outside; }
+            .chat-bubble.assistant li { display: list-item; margin: 2px 0; list-style: inherit; }
             .chat-bubble.assistant strong { color: var(--strong-accent); }
             .chat-bubble.assistant code { background: var(--bg-code); padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 13px; }
             .chat-bubble.assistant pre { background: var(--bg-code); padding: 10px; border-radius: 6px; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--border-2); margin: 8px 0; max-width: 100%; box-sizing: border-box;}
