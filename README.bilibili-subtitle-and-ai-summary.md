@@ -51,7 +51,7 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 
 - `阿里云百炼`：固定 Endpoint `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
 - `DeepSeek官方`：固定 Endpoint `https://api.deepseek.com/chat/completions`
-- `自定义`：手动填写 OpenAI 兼容的 Chat Completions Endpoint
+- `自定义`：手动填写完整的 OpenAI 兼容 Chat Completions 地址，例如 `https://api.openai.com/v1/chat/completions`（脚本不会自动补 `/v1/chat/completions`）
 
 ### 模型
 
@@ -59,7 +59,21 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 
 ### 思考模式
 
-开启后按服务商附加 payload：阿里云 `enable_thinking: true`，DeepSeek `thinking: { type: "enabled" }`。自定义 Endpoint 会根据地址是否含 `dashscope` / `deepseek.com` 自动适配。
+阿里云、DeepSeek 提供「开启思考模式」勾选，开启后按服务商附加 payload：阿里云 `enable_thinking: true`，DeepSeek `thinking: { type: "enabled" }`。
+
+**自定义服务商**没有这个勾选，改为提供一个 `extra_body`（JSON）输入框：你填写的 JSON 会被合并进请求参数，需要思考就自行填入对应字段，例如：
+
+```json
+{"enable_thinking": true}
+```
+
+或
+
+```json
+{"reasoning_effort": "high"}
+```
+
+是否显示「思考耗时」取决于接口是否返回 `reasoning_content`，与各家一致，无需额外配置。
 
 ### 自定义 Prompt
 
