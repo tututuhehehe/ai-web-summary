@@ -69,6 +69,7 @@
   // 状态数据
   let currentSubtitle = "";
   let chatHistory = [];
+  let sessionTokens = { input: 0, output: 0 }; // 本次会话累计 token 用量
   let isRequesting = false;
   let currentRequest = null; // 正在进行的 GM_xmlhttpRequest 句柄，用于可中断
   let requestSeq = 0; // 请求序号，用于丢弃被中断的旧请求回调
@@ -644,7 +645,7 @@
           doRender(true);
           isRequesting = false;
           currentRequest = null;
-          updateTokenBar(usageInfo, mainContent + reasoningContent);
+          updateTokenBar(usageInfo);
           onComplete(mainContent || reasoningContent);
           updateChatSendButtonState();
         } catch (err) {
@@ -698,18 +699,35 @@
   }
 
   // 更新顶部 token 用量显示。优先用接口返回的 usage；若接口未返回则隐藏
-  function updateTokenBar(usage, outputText) {
+  // 重置会话 token 累计（切换视频/重新总结开启新会话时）
+  function resetSessionTokens() {
+    sessionTokens = { input: 0, output: 0 };
+  }
+
+  // 更新顶部 token 用量：显示本次请求用量 + 本次会话累计。
+  // usage 为 null 时仅重新渲染（不累加）；无任何数据时隐藏。
+  function updateTokenBar(usage) {
     const bar = document.getElementById("ai-token-bar");
     if (!bar) return;
-    if (usage && (usage.prompt_tokens != null || usage.completion_tokens != null)) {
-      const input = usage.prompt_tokens ?? "?";
-      const output = usage.completion_tokens ?? "?";
-      bar.innerHTML = `<span title="输入 token（含字幕/对话上下文）">↑ 输入 ${input}</span>` +
-        `<span title="输出 token（模型回答）">↓ 输出 ${output}</span>`;
-      bar.style.display = "flex";
-    } else {
-      bar.style.display = "none";
+    if (
+      usage &&
+      (usage.prompt_tokens != null || usage.completion_tokens != null)
+    ) {
+      const input = usage.prompt_tokens ?? 0;
+      const output = usage.completion_tokens ?? 0;
+      sessionTokens.input += input;
+      sessionTokens.output += output;
     }
+    if (sessionTokens.input === 0 && sessionTokens.output === 0) {
+      bar.style.display = "none";
+      return;
+    }
+    const lastInput = usage?.prompt_tokens ?? "—";
+    const lastOutput = usage?.completion_tokens ?? "—";
+    bar.innerHTML =
+      `<span title="本次请求：输入(含字幕/上下文) / 输出(回答)">本次 ↑${lastInput} ↓${lastOutput}</span>` +
+      `<span title="本次会话累计消耗">累计 ↑${sessionTokens.input} ↓${sessionTokens.output}</span>`;
+    bar.style.display = "flex";
   }
 
   function appendChatBubble(role, contentHTML) {
@@ -789,6 +807,8 @@
     const chatContainer = document.getElementById("ai-panel-chat");
     chatContainer.innerHTML = "";
     chatHistory = [];
+    resetSessionTokens(); // 重新总结开启新会话，累计清零
+    updateTokenBar(null);
 
     const systemPrompt =
       "你是一个得力的视频内容总结与问答助手。请直接输出 Markdown 格式的排版内容。";
@@ -1259,6 +1279,7 @@
               chatContainer.scrollTop = 0;
             }
             updateTokenBar(null); // 切换视频，隐藏旧的 token 统计
+            resetSessionTokens(); // 新视频是新会话，累计清零
             updateChatSendButtonState();
           }
         }
