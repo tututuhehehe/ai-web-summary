@@ -37,6 +37,7 @@
   const SELECTORS = {
     subtitleLangItem: ".bpx-player-ctrl-subtitle-language-item",
     subtitleToggle: ".bpx-player-ctrl-subtitle",
+    playerContainer: ".bpx-player-container",
   };
 
   // 配置数据字典
@@ -281,6 +282,7 @@
   let currentRequest = null; // 正在进行的 GM_xmlhttpRequest 句柄，用于可中断
   let requestSeq = 0; // 请求序号，用于丢弃被中断的旧请求回调
   let activeAssistantBubble = null; // 当前正在流式写入的 assistant 气泡，用于终止时标注
+  let reattachSubtitleObserver = null; // SPA 切视频后重新绑定字幕按钮 observer（由 createGlobalObserver 赋值）
 
   // 用户主动终止当前生成：中断请求并在已生成内容后追加「已终止」标记
   function stopCurrentGeneration() {
@@ -637,6 +639,16 @@
         document.querySelector(".bilibili-subtitle-infobar.info")?.remove();
         showInfoBar("提取失败: " + e.message, "error");
       });
+  }
+
+  // 判断元素是否处于隐藏（display:none）状态。
+  // 优先读取内联 style.display（O(1)，不触发样式重算）；仅当内联为空时
+  // 才回退到一次 getComputedStyle（用于初始由 CSS 类控制隐藏、尚未被内联设置过的元素）。
+  function isElHidden(el) {
+    if (!el) return true;
+    const inline = el.style.display;
+    if (inline) return inline === "none";
+    return getComputedStyle(el).display === "none";
   }
 
   function escapeHtml(s) {
@@ -1491,7 +1503,7 @@
           return;
         }
         // 3) 面板已弹出且未聚焦输入框：收起面板
-        if (getComputedStyle(panel).display !== "none") {
+        if (!isElHidden(panel)) {
           collapsePanel();
         }
         return;
@@ -1512,7 +1524,7 @@
       if (e.key === "s" || e.key === "S") {
         e.preventDefault();
         // s 切换：已弹出则收起，未弹出则唤起
-        if (getComputedStyle(panel).display !== "none") {
+        if (!isElHidden(panel)) {
           collapsePanel();
         } else {
           ensureSubtitleAndExecuteGlobal(() => {
@@ -1563,7 +1575,7 @@
 
     function closeSettings() {
       const box = document.getElementById("ai-panel-settings-container");
-      if (getComputedStyle(box).display === "none") return;
+      if (isElHidden(box)) return;
       const changed = saveSettings();
       box.style.display = "none";
       if (changed) showInfoBar("✅ 设置已保存", "success", 1200);
@@ -1573,8 +1585,8 @@
       .getElementById("ai-setting-toggle")
       .addEventListener("click", () => {
         const box = document.getElementById("ai-panel-settings-container");
-        // 初始隐藏由 CSS 类控制，内联 style.display 为空，需用 computed 判断真实状态
-        const isOpen = getComputedStyle(box).display !== "none";
+        // 初始隐藏由 CSS 类控制，内联 style.display 为空；isElHidden 会处理该回退
+        const isOpen = !isElHidden(box);
         if (isOpen) {
           closeSettings();
         } else {
@@ -1585,7 +1597,7 @@
     // 设置面板打开时，点击面板内的非设置区域（聊天区/顶栏/输入区等）自动保存并关闭
     panel.addEventListener("mousedown", (e) => {
       const box = document.getElementById("ai-panel-settings-container");
-      if (getComputedStyle(box).display === "none") return;
+      if (isElHidden(box)) return;
       const toggle = document.getElementById("ai-setting-toggle");
       // 点击发生在设置面板内或设置齿轮上时不处理
       if (box.contains(e.target) || (toggle && toggle.contains(e.target)))
@@ -1743,7 +1755,36 @@
         injectCopyButtons();
       }, 100);
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+
+    // 字幕语言项仅存在于播放器控制栏内。将 observer 限定在播放器容器上，
+    // 避免监听整个 document.body（弹幕/进度条等高频变动会让 body 层 observer 长期空转）。
+    // 播放器在 SPA 下可能延迟渲染，未出现时先轻量轮询等待。
+    let bootstrapTimer = null;
+    let observedPlayer = null; // 当前已监听的播放器节点（SPA 切视频时可能被替换）
+    function attachObserver() {
+      const player = document.querySelector(SELECTORS.playerContainer);
+      if (!player) return false;
+      if (player === observedPlayer) return true; // 同一节点无需重复绑定
+      observer.disconnect(); // 节点被替换：先解除旧的再监听新的
+      observedPlayer = player;
+      injectCopyButtons(); // 首次附着后先补一次
+      observer.observe(player, { childList: true, subtree: true });
+      return true;
+    }
+    // 暴露给 SPA 路由处理：切视频可能替换播放器节点，需重新绑定
+    reattachSubtitleObserver = function () {
+      if (!attachObserver() && !bootstrapTimer) startBootstrap();
+    };
+    function startBootstrap() {
+      let tries = 60; // 最多等 ~30s，仍未出现则放弃（本页无播放器）
+      bootstrapTimer = setInterval(() => {
+        if (attachObserver() || --tries <= 0) {
+          clearInterval(bootstrapTimer);
+          bootstrapTimer = null;
+        }
+      }, 500);
+    }
+    if (!attachObserver()) startBootstrap();
   }
 
   function setupSPARouting() {
@@ -1783,6 +1824,11 @@
             window._biliSubtitleUrls = [];
             cachedScriptSubtitleUrls = null;
 
+            // 播放器节点可能被换成新视频的，重新绑定字幕按钮 observer
+            if (typeof reattachSubtitleObserver === "function") {
+              reattachSubtitleObserver();
+            }
+
             // Reset state
             abortCurrentRequest(); // 中断可能正在进行的 AI 请求，避免向旧面板写入及状态卡死
             currentSubtitle = "";
@@ -1802,7 +1848,7 @@
             // 切换视频时若面板未收起，自动收起回侧栏
             const aiPanel = document.getElementById("bili-ai-panel");
             const minTab = document.getElementById("bili-ai-minimized");
-            if (aiPanel && minTab && getComputedStyle(aiPanel).display !== "none") {
+            if (aiPanel && minTab && !isElHidden(aiPanel)) {
               aiPanel.style.display = "none";
               minTab.style.display = "flex";
             }
