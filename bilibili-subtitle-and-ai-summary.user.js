@@ -443,6 +443,8 @@
             .chat-bubble.assistant h1, .chat-bubble.assistant h2, .chat-bubble.assistant h3, .chat-bubble.assistant h4, .chat-bubble.assistant h5, .chat-bubble.assistant h6 { color: var(--text-strong); margin-top: 0; margin-bottom: 8px; font-size: 15px; }
             .chat-bubble.assistant p { margin: 0 0 8px 0; }
             .chat-bubble.assistant p:last-child { margin: 0; }
+            .chat-bubble.assistant .ai-seg { margin-bottom: 8px; }
+            .chat-bubble.assistant .ai-seg:last-child { margin-bottom: 0; }
             .chat-bubble.assistant ul, .chat-bubble.assistant ol { margin: 0 0 8px 0; padding-left: 22px; }
             .chat-bubble.assistant ul { list-style: disc outside; }
             .chat-bubble.assistant ol { list-style: decimal outside; }
@@ -714,7 +716,8 @@
           let mainContent = "";
 
           let committedMain = "";
-          let committedRendered = ""; // 已渲染到页面的 committed 文本，避免重复重写定稿部分
+          let committedSegments = []; // 已定稿的段落原文数组，每段对应一个独立 DOM 节点
+          let renderedSegCount = 0; // 已 append 到页面的段落数，旧节点从不重建
           let pendingMain = "";
           let rafId = null;
           let receivedError = "";
@@ -810,8 +813,9 @@
             // 为避免把未闭合的代码块（```）从中间切断导致渲染错乱，
             // 只有当拟定稿部分的反引号成对（偶数）时才提交。
             if (pendingMain && (isFinal || /\n\n/.test(pendingMain))) {
+              let newlyCommitted = "";
               if (isFinal) {
-                committedMain += pendingMain;
+                newlyCommitted = pendingMain;
                 pendingMain = "";
               } else {
                 const splitAt = pendingMain.lastIndexOf("\n\n") + 2;
@@ -821,10 +825,19 @@
                     (committedMain + candidate).match(/```/g) || []
                   ).length;
                   if (fenceCount % 2 === 0) {
-                    committedMain += candidate;
+                    newlyCommitted = candidate;
                     pendingMain = pendingMain.slice(splitAt);
                   }
                 }
+              }
+              if (newlyCommitted) {
+                committedMain += newlyCommitted;
+                // 拆成独立段落（以空行分隔），每段单独成一个 DOM 节点
+                newlyCommitted
+                  .split(/\n{2,}/)
+                  .map((s) => s.trim())
+                  .filter((s) => s.length > 0)
+                  .forEach((seg) => committedSegments.push(seg));
               }
             }
 
@@ -837,7 +850,7 @@
                 '<div class="ai-think-slot"></div>' +
                 '<div class="ai-main-slot"><div class="ai-committed"></div><div class="ai-pending"></div></div>';
               mainSlot = assistantBubble.querySelector(".ai-main-slot");
-              committedRendered = ""; // 新容器，重置已渲染记录
+              renderedSegCount = 0; // 新容器，重置已 append 段数
             }
 
             // 思考框：增量更新，从不重建，保留用户展开/折叠状态
@@ -859,13 +872,18 @@
                 reasoningContent;
             }
 
-            // 正文：committed 部分仅在定稿增长时重渲染（保持已有 DOM 稳定，不打断选区）；
-            // pending 部分每帧重写。两者都不影响思考框。
+            // 正文：committed 每段作为独立 DOM 节点，只 append 新增段落，旧节点永不重建
+            // （复制任何已完成段落都不受后续输出影响）；pending 每帧重写。两者都不影响思考框。
             const committedEl = mainSlot.querySelector(".ai-committed");
             const pendingEl = mainSlot.querySelector(".ai-pending");
-            if (committedEl && committedMain !== committedRendered) {
-              committedRendered = committedMain;
-              committedEl.innerHTML = committedMain ? marked.parse(committedMain) : "";
+            if (committedEl) {
+              for (let i = renderedSegCount; i < committedSegments.length; i++) {
+                const segEl = document.createElement("div");
+                segEl.className = "ai-seg";
+                segEl.innerHTML = marked.parse(committedSegments[i]);
+                committedEl.appendChild(segEl);
+              }
+              renderedSegCount = committedSegments.length;
             }
             if (pendingEl) {
               if (pendingMain) {
