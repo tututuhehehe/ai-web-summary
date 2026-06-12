@@ -1336,10 +1336,10 @@
       .getElementById("ai-minimize-btn")
       .addEventListener("click", collapsePanel);
 
-    // 键盘快捷键：Esc 收起已弹出面板；s 快速唤起 AI 总结（输入状态不触发）
+    // 键盘快捷键：Esc 打断当前回复；s 唤起/收起 AI 总结（输入状态不触发）
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && getComputedStyle(panel).display !== "none") {
-        collapsePanel();
+      if (e.key === "Escape" && isRequesting) {
+        stopCurrentGeneration(); // 打断当前生成
         return;
       }
 
