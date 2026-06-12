@@ -1537,6 +1537,8 @@
     document
       .getElementById("ai-chat-textarea")
       .addEventListener("keydown", (e) => {
+        // 输入法合成中（如中文拼音选词）按 Enter 是确认候选词，不应触发发送
+        if (e.isComposing || e.keyCode === 229) return;
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
           handleSendChat();
