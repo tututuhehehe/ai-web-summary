@@ -1430,8 +1430,22 @@
 
     // 键盘快捷键：Esc 打断当前回复；s 唤起/收起 AI 总结（输入状态不触发）
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && isRequesting) {
-        stopCurrentGeneration(); // 打断当前生成
+      if (e.key === "Escape") {
+        // 1) 回答中：打断生成
+        if (isRequesting) {
+          stopCurrentGeneration();
+          return;
+        }
+        // 2) 焦点在面板输入框：先取消聚焦
+        const chatInput = document.getElementById("ai-chat-textarea");
+        if (chatInput && document.activeElement === chatInput) {
+          chatInput.blur();
+          return;
+        }
+        // 3) 面板已弹出且未聚焦输入框：收起面板
+        if (getComputedStyle(panel).display !== "none") {
+          collapsePanel();
+        }
         return;
       }
 
