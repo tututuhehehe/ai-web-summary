@@ -912,7 +912,56 @@
     minTab.innerHTML = `<span>AI总结</span>`;
     document.body.appendChild(minTab);
 
-    minTab.addEventListener("click", () => {
+    // 应用保存的拖拽位置（仅上下，始终贴右侧），并限制在可视区内
+    function applyMinTabPos(top) {
+      if (typeof top !== "number") return;
+      const h = minTab.offsetHeight || 110;
+      const clamped = Math.max(0, Math.min(top, window.innerHeight - h));
+      minTab.style.top = clamped + "px";
+      minTab.style.transform = "none";
+    }
+    applyMinTabPos(GM_getValue("minTabTop", null));
+
+    // 拖拽逻辑：仅纵向移动，移动超过阈值才视为拖拽，否则仍为点击（展开面板）
+    let dragging = false;
+    let moved = false;
+    let startY = 0;
+    let originTop = 0;
+
+    minTab.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      dragging = true;
+      moved = false;
+      startY = e.clientY;
+      originTop = minTab.getBoundingClientRect().top;
+      e.preventDefault(); // 避免拖拽时选中文本
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const dy = e.clientY - startY;
+      if (!moved && Math.abs(dy) < 5) return; // 小于阈值不算拖拽
+      moved = true;
+      const h = minTab.offsetHeight;
+      const top = Math.max(0, Math.min(originTop + dy, window.innerHeight - h));
+      minTab.style.top = top + "px";
+      minTab.style.transform = "none";
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      if (moved) {
+        GM_setValue("minTabTop", minTab.getBoundingClientRect().top); // 持久化，切换视频后保留
+      }
+    });
+
+    minTab.addEventListener("click", (e) => {
+      if (moved) {
+        // 刚拖拽完成的这次 click 不触发展开
+        moved = false;
+        return;
+      }
       ensureSubtitleAndExecuteGlobal(() => {
         handleAISummaryBtn();
       });
