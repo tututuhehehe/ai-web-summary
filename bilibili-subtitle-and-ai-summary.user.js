@@ -1783,6 +1783,8 @@
         if (e.isComposing || e.keyCode === 229) return;
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
+          // 回答进行中：Enter 不终止生成（终止只能点发送按钮的 ⏹）
+          if (isRequesting) return;
           handleSendChat();
         }
       });
