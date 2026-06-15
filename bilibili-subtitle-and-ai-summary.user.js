@@ -26,19 +26,19 @@
   const startTime = performance.now();
   const version = GM_info.script.version;
 
-  // 集中管理外部端点常量，避免在多处硬编码
+  // 集中管理外部端点常量,避免在多处硬编码
   const ENDPOINTS = {
     aliyun:
       "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     deepseek: "https://api.deepseek.com/chat/completions",
   };
 
-  // 集中管理 B 站播放器 DOM 选择器，B 站改版时只需在此处维护
+  // 集中管理 B 站播放器 DOM 选择器,B 站改版时只需在此处维护
   const SELECTORS = {
     subtitleLangItem: ".bpx-player-ctrl-subtitle-language-item",
     subtitleToggle: ".bpx-player-ctrl-subtitle",
     playerContainer: ".bpx-player-container",
-    // 视频标题：普通视频页 / 番剧页 / 旧版，多重兜底
+    // 视频标题:普通视频页 / 番剧页 / 旧版,多重兜底
     videoTitle: [
       ".video-info-title-inner .video-title",
       ".video-info-title .video-title",
@@ -87,7 +87,7 @@
       key: "ai_extra_body",
       def: "",
       el: "set-extrabody",
-      perProvider: true, // 仅自定义服务商使用：额外 payload 参数（JSON）
+      perProvider: true, // 仅自定义服务商使用:额外 payload 参数(JSON)
     },
     prompt: {
       key: "ai_custom_prompt",
@@ -95,19 +95,19 @@
 
       你是一名专业的信息提炼与知识整理助手。
 
-      视频标题：
+      视频标题:
 
       {{video_title}}
 
       用户通常是因为这个标题而点击视频。
 
-      因此，你首先要回答的不是「视频讲了什么」，而是：
+      因此,你首先要回答的不是「视频讲了什么」,而是:
 
-      标题中的问题，最终答案是什么？
+      标题中的问题,最终答案是什么?
       或
-      标题所讨论的话题，最终结论是什么？
+      标题所讨论的话题,最终结论是什么?
 
-      你的任务是基于用户提供的视频字幕（Transcript），提炼作者真正想表达的观点、结论和逻辑，并输出高信息密度总结。
+      你的任务是基于用户提供的视频字幕(Transcript),提炼作者真正想表达的观点、结论和逻辑,并输出高信息密度总结。
 
       ⸻
 
@@ -119,15 +119,15 @@
       2. 优先提炼核心观点、关键结论和底层逻辑。
       3. 删除寒暄、口头禅、广告、闲聊、重复表达。
       4. 保留重要事实、案例、数据、方法论和推理过程。
-      5. 对明显的口语化表达、转录错误和语病，可结合上下文修正。
+      5. 对明显的口语化表达、转录错误和语病,可结合上下文修正。
       6. 总结应让未观看视频的人也能快速获得核心信息。
 
       信息组织
 
-      1. 按「观点」组织内容，而不是按字幕顺序复述。
-      2. 数据、案例、实验、引用等内容，应放到对应观点下解释。
+      1. 按「观点」组织内容,而不是按字幕顺序复述。
+      2. 数据、案例、实验、引用等内容,应放到对应观点下解释。
       3. 不要为了完整而堆砌细节。
-      4. 优先保留结论与理由，其次才是过程。
+      4. 优先保留结论与理由,其次才是过程。
 
       ⸻
 
@@ -135,10 +135,13 @@
 
       使用 Markdown 输出。
 
-      开头不要寒暄，不要解释自己在做什么，直接开始总结。
+      开头不要寒暄,不要解释自己在做什么,直接开始总结。
+
+      ---
+
       # 视频主题
 
-      用 1～2 句话概括视频真正讨论的内容。
+      用 1~2 句话概括视频真正讨论的内容。
 
       ---
 
@@ -146,21 +149,21 @@
 
       直接回答标题。
 
-      如果标题是问题：
+      如果标题是问题:
 
       列出视频最终给出的答案。
 
-      如果标题是主题：
+      如果标题是主题:
 
       列出视频围绕该主题最重要的核心结论。
 
-      格式：
+      格式:
 
-      1. …
-      2. …
-      3. …
+      1. ...
+      2. ...
+      3. ...
 
-      要求：
+      要求:
 
       * 每条只写结论
       * 简洁直接
@@ -171,7 +174,7 @@
 
       # 详细展开
 
-      按照第一部分的编号顺序，对每个结论逐条展开。
+      按照第一部分的编号顺序,对每个结论逐条展开。
 
       ## 1. 结论一
 
@@ -181,7 +184,7 @@
 
       支撑依据
 
-      整理视频中的：
+      整理视频中的:
 
       * 数据
       * 案例
@@ -191,9 +194,9 @@
 
       只保留真正支撑结论的信息。
 
-      ### 补充细节（可选）
+      ### 补充细节(可选)
 
-      如有必要，补充关键背景。
+      如有必要,补充关键背景。
 
       ⸻
 
@@ -203,27 +206,27 @@
 
       ⸻
 
-      （依次展开）
+      (依次展开)
 
       ⸻
 
-      # 其他重要内容（可选）
+      # 其他重要内容(可选)
 
-      如果视频中还有重要信息无法归入上述结论，可单独补充。
+      如果视频中还有重要信息无法归入上述结论,可单独补充。
 
       ⸻
 
-      # 可执行建议（可选）
+      # 可执行建议(可选)
 
       仅当视频明确提供行动方案、操作步骤、方法论时输出。
 
-      格式：
+      格式:
 
-      1. …
-      2. …
-      3. …
+      1. ...
+      2. ...
+      3. ...
 
-      如果视频没有明确建议，则省略本节。
+      如果视频没有明确建议,则省略本节。
 
       ⸻
 
@@ -242,31 +245,31 @@
       * 避免套话和废话
       * 重点内容使用 加粗
       * 输出语言与字幕语言保持一致
-      * 字幕信息不足时明确说明，不得编造`,
+      * 字幕信息不足时明确说明,不得编造`,
       el: "set-prompt",
     },
   };
 
-  // 按服务商存储的配置项使用带后缀的 key，使三家各自保存 apiKey/endpoint/模型
+  // 按服务商存储的配置项使用带后缀的 key,使三家各自保存 apiKey/endpoint/模型
   function providerKey(baseKey, provider) {
     return `${baseKey}_${provider}`;
   }
 
-  // 各服务商的默认模型（首次未配置时使用）
+  // 各服务商的默认模型(首次未配置时使用)
   const PROVIDER_DEFAULTS = {
     aliyun: { model1: "qwen-plus", model2: "qwen-turbo" },
     deepseek: { model1: "deepseek-chat", model2: "deepseek-reasoner" },
     custom: { model1: "", model2: "" },
   };
 
-  // 读取某服务商的 endpoint：aliyun/deepseek 为固定值，custom 读取保存值
+  // 读取某服务商的 endpoint:aliyun/deepseek 为固定值,custom 读取保存值
   function loadEndpoint(provider) {
     if (provider === "aliyun") return ENDPOINTS.aliyun;
     if (provider === "deepseek") return ENDPOINTS.deepseek;
     return GM_getValue(providerKey("ai_endpoint", provider), "");
   }
 
-  // 读取某服务商的按服务商配置项（apiKey/model1/model2）
+  // 读取某服务商的按服务商配置项(apiKey/model1/model2)
   function loadProviderValue(baseKey, provider, fallbackDef) {
     const def =
       (PROVIDER_DEFAULTS[provider] &&
@@ -312,7 +315,7 @@
     aiConfig[k] = GM_getValue(CONFIG_DICT[k].key, CONFIG_DICT[k].def);
   }
 
-  // 一次性迁移：旧版本 apiKey/endpoint 为全局单一存储，迁移到当前服务商的后缀 key
+  // 一次性迁移:旧版本 apiKey/endpoint 为全局单一存储,迁移到当前服务商的后缀 key
   (function migrateLegacyConfig() {
     if (GM_getValue("ai_config_migrated", false)) return;
     const prov = aiConfig.provider;
@@ -345,17 +348,17 @@
   let chatHistory = [];
   let sessionTokens = { input: 0, output: 0 }; // 本次会话累计 token 用量
   let isRequesting = false;
-  let currentRequest = null; // 正在进行的 GM_xmlhttpRequest 句柄，用于可中断
-  let requestSeq = 0; // 请求序号，用于丢弃被中断的旧请求回调
-  let activeAssistantBubble = null; // 当前正在流式写入的 assistant 气泡，用于终止时标注
-  let reattachSubtitleObserver = null; // SPA 切视频后重新绑定字幕按钮 observer（由 createGlobalObserver 赋值）
+  let currentRequest = null; // 正在进行的 GM_xmlhttpRequest 句柄,用于可中断
+  let requestSeq = 0; // 请求序号,用于丢弃被中断的旧请求回调
+  let activeAssistantBubble = null; // 当前正在流式写入的 assistant 气泡,用于终止时标注
+  let reattachSubtitleObserver = null; // SPA 切视频后重新绑定字幕按钮 observer(由 createGlobalObserver 赋值)
 
-  // 用户主动终止当前生成：中断请求并在已生成内容后追加「已终止」标记
+  // 用户主动终止当前生成:中断请求并在已生成内容后追加「已终止」标记
   function stopCurrentGeneration() {
     const bubble = activeAssistantBubble;
     abortCurrentRequest();
     if (bubble) {
-      // 若气泡还是初始「响应中」占位文本，直接提示已终止；否则在现有内容后追加
+      // 若气泡还是初始「响应中」占位文本,直接提示已终止;否则在现有内容后追加
       const onlyPlaceholder = /^\s*<span[^>]*>AI[^<]*<\/span>\s*$/.test(
         bubble.innerHTML,
       );
@@ -372,7 +375,7 @@
     updateChatSendButtonState();
   }
 
-  // 中断当前正在进行的 AI 请求（如 SPA 切换视频时）
+  // 中断当前正在进行的 AI 请求(如 SPA 切换视频时)
   function abortCurrentRequest() {
     if (currentRequest && typeof currentRequest.abort === "function") {
       try {
@@ -380,14 +383,14 @@
       } catch (e) {}
     }
     currentRequest = null;
-    requestSeq++; // 序号递增，使旧请求的后续回调失效
+    requestSeq++; // 序号递增,使旧请求的后续回调失效
     isRequesting = false;
     activeAssistantBubble = null;
   }
 
   function addGlobalStyles() {
     if (document.getElementById("bili-ai-style")) return;
-    // 读取保存的侧栏位置，直接作为初始定位写进 CSS，避免首帧先居中再跳转的闪烁
+    // 读取保存的侧栏位置,直接作为初始定位写进 CSS,避免首帧先居中再跳转的闪烁
     const savedTop = GM_getValue("minTabTop", null);
     const minTabPos =
       typeof savedTop === "number"
@@ -497,7 +500,7 @@
             .ai-token-bar span { white-space: nowrap; }
 
             .ai-panel-chat { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; }
-            /* 隐藏面板内可滚动区域的滚动条（保留滚动功能） */
+            /* 隐藏面板内可滚动区域的滚动条(保留滚动功能) */
             .ai-panel-chat::-webkit-scrollbar,
             .ai-panel-settings::-webkit-scrollbar,
             .chat-bubble.assistant pre::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
@@ -615,7 +618,7 @@
       document.querySelectorAll("script").forEach((scriptEl) => {
         const code = scriptEl.textContent;
         if (!code) return;
-        // 先用 includes 短路：目标 URL 必含 auth_key，绝大多数脚本不含，
+        // 先用 includes 短路:目标 URL 必含 auth_key,绝大多数脚本不含,
         // 避免对每个大脚本都跑带回溯的全局正则
         if (!code.includes("auth_key")) return;
         if (code.includes("subtitle")) {
@@ -654,19 +657,19 @@
           ? data.data.body
           : null;
     if (Array.isArray(body)) return body;
-    throw new Error("无法解析字幕数据（格式异常或为空）");
+    throw new Error("无法解析字幕数据(格式异常或为空)");
   }
   function fetchSubtitleText() {
     return new Promise((res, rej) => {
       const urls = getSubtitleUrls();
       if (urls.length === 0) return rej(new Error("未找到字幕"));
-      // 仅在语言标识字段（lan= 或路径分段）中匹配中文，避免误命中 auth_key/域名中的 cn 等子串
+      // 仅在语言标识字段(lan= 或路径分段)中匹配中文,避免误命中 auth_key/域名中的 cn 等子串
       const zhUrl = urls.find((url) =>
         /[?&]lan=(zh|cn|hans)|[-_/](zh|hans|zh-hans|zh-cn)[-_./]/i.test(url),
       );
       let url = zhUrl || urls[urls.length - 1];
       if (url.startsWith("//")) url = "https:" + url;
-      // 使用 GM_xmlhttpRequest 下载字幕，避免 *.bilibili.com 对 *.hdslb.com 的跨域限制
+      // 使用 GM_xmlhttpRequest 下载字幕,避免 *.bilibili.com 对 *.hdslb.com 的跨域限制
       GM_xmlhttpRequest({
         method: "GET",
         url: url,
@@ -677,7 +680,7 @@
             return;
           }
           try {
-            // 部分管理器不会根据 responseType 自动解析，需兼容 responseText
+            // 部分管理器不会根据 responseType 自动解析,需兼容 responseText
             let data = response.response;
             if (typeof data === "string") data = JSON.parse(data);
             else if (data == null && response.responseText)
@@ -692,7 +695,7 @@
           }
         },
         onerror: function () {
-          rej(new Error("字幕下载失败（网络错误）"));
+          rej(new Error("字幕下载失败(网络错误)"));
         },
         ontimeout: function () {
           rej(new Error("字幕下载超时"));
@@ -706,7 +709,7 @@
       .then((t) => {
         document.querySelector(".bilibili-subtitle-infobar.info")?.remove();
         GM_setClipboard(t, "text");
-        showInfoBar("✅ 已复制！", "success", 2500);
+        showInfoBar("✅ 已复制!", "success", 2500);
       })
       .catch((e) => {
         document.querySelector(".bilibili-subtitle-infobar.info")?.remove();
@@ -714,9 +717,9 @@
       });
   }
 
-  // 判断元素是否处于隐藏（display:none）状态。
-  // 优先读取内联 style.display（O(1)，不触发样式重算）；仅当内联为空时
-  // 才回退到一次 getComputedStyle（用于初始由 CSS 类控制隐藏、尚未被内联设置过的元素）。
+  // 判断元素是否处于隐藏(display:none)状态。
+  // 优先读取内联 style.display(O(1),不触发样式重算);仅当内联为空时
+  // 才回退到一次 getComputedStyle(用于初始由 CSS 类控制隐藏、尚未被内联设置过的元素)。
   function isElHidden(el) {
     if (!el) return true;
     const inline = el.style.display;
@@ -747,8 +750,8 @@
 
     const selectedModel = document.getElementById("ai-model-select").value;
     isRequesting = true;
-    const mySeq = ++requestSeq; // 本次请求的序号，后续回调需校验是否仍为最新
-    // 判断本次请求是否已被新请求/路由切换作废，或目标 bubble 已脱离文档
+    const mySeq = ++requestSeq; // 本次请求的序号,后续回调需校验是否仍为最新
+    // 判断本次请求是否已被新请求/路由切换作废,或目标 bubble 已脱离文档
     function isStale() {
       if (mySeq !== requestSeq) return true;
       if (assistantBubble && !assistantBubble.isConnected) return true;
@@ -769,7 +772,7 @@
     } else if (aiConfig.provider === "deepseek") {
       payload.thinking = { type: aiConfig.thinking ? "enabled" : "disabled" };
     } else {
-      // 自定义服务商：不用思考开关，改为合并用户填写的 extra_body JSON
+      // 自定义服务商:不用思考开关,改为合并用户填写的 extra_body JSON
       if (aiConfig.extraBody && aiConfig.extraBody.trim()) {
         try {
           const extra = JSON.parse(aiConfig.extraBody);
@@ -777,7 +780,7 @@
             Object.assign(payload, extra);
           }
         } catch (e) {
-          // JSON 解析失败时忽略（不中断请求），由用户自行检查格式
+          // JSON 解析失败时忽略(不中断请求),由用户自行检查格式
         }
       }
     }
@@ -801,25 +804,25 @@
           let mainContent = "";
 
           let committedMain = "";
-          let committedSegments = []; // 已定稿的段落原文数组，每段对应一个独立 DOM 节点
-          let renderedSegCount = 0; // 已 append 到页面的段落数，旧节点从不重建
+          let committedSegments = []; // 已定稿的段落原文数组,每段对应一个独立 DOM 节点
+          let renderedSegCount = 0; // 已 append 到页面的段落数,旧节点从不重建
           let pendingMain = "";
           let rafId = null;
-          let lastRenderedPending = null; // 上次实际渲染到 DOM 的 pending 内容，用于去重跳过
-          let lastPendingRenderTs = 0; // 上次 pending 段实际渲染的时间戳，用于时间节流
+          let lastRenderedPending = null; // 上次实际渲染到 DOM 的 pending 内容,用于去重跳过
+          let lastPendingRenderTs = 0; // 上次 pending 段实际渲染的时间戳,用于时间节流
           let tailTimer = null; // 节流跳过时的尾帧兜底定时器
           let receivedError = "";
-          let thinkStartTime = 0; // 思考（reasoning）首次出现的时间炳
-          let thinkSeconds = 0; // 已思考秒数（一秒一秒跳动）
-          let thinkTimer = null; // 思考计时器，每秒刷新标题
-          let usageInfo = null; // 接口返回的 token 用量（prompt/completion）
+          let thinkStartTime = 0; // 思考(reasoning)首次出现的时间炳
+          let thinkSeconds = 0; // 已思考秒数(一秒一秒跳动)
+          let thinkTimer = null; // 思考计时器,每秒刷新标题
+          let usageInfo = null; // 接口返回的 token 用量(prompt/completion)
 
-          // 解析一批 SSE 文本行，提取 reasoning/content 增量
+          // 解析一批 SSE 文本行,提取 reasoning/content 增量
           function processLines(lines) {
             for (let line of lines) {
               line = line.trim();
               if (!line.startsWith("data:")) {
-                // 非 SSE 行：可能是接口返回的 JSON 错误体，尝试提取错误信息
+                // 非 SSE 行:可能是接口返回的 JSON 错误体,尝试提取错误信息
                 if (line && !receivedError) {
                   try {
                     const errObj = JSON.parse(line);
@@ -839,16 +842,16 @@
                   if (!receivedError) receivedError = "接口错误: " + msg;
                   continue;
                 }
-                if (data?.usage) usageInfo = data.usage; // 捕获 token 用量（可能在 delta 为空的末 chunk）
+                if (data?.usage) usageInfo = data.usage; // 捕获 token 用量(可能在 delta 为空的末 chunk)
                 const delta = data?.choices?.[0]?.delta;
                 if (!delta) continue;
-                // 思考增量字段兼容不同服务商：阿里云/DeepSeek 为 reasoning_content，
-                // Groq（gpt-oss 系）为 reasoning
+                // 思考增量字段兼容不同服务商:阿里云/DeepSeek 为 reasoning_content,
+                // Groq(gpt-oss 系)为 reasoning
                 const reasoningDelta =
                   delta.reasoning_content ?? delta.reasoning;
                 if (reasoningDelta) {
                   reasoningContent += reasoningDelta;
-                  // 首次收到思考内容：启动每秒计时，让标题秒数一秒一秒跳
+                  // 首次收到思考内容:启动每秒计时,让标题秒数一秒一秒跳
                   if (!thinkStartTime) {
                     thinkStartTime = Date.now();
                     thinkTimer = setInterval(() => {
@@ -863,7 +866,7 @@
                   }
                 }
                 if (delta.content) {
-                  // 首次出现正文：停止思考计时，定格耗时秒数
+                  // 首次出现正文:停止思考计时,定格耗时秒数
                   if (thinkTimer && !mainContent) stopThinkTimer();
                   mainContent += delta.content;
                   pendingMain += delta.content;
@@ -875,8 +878,8 @@
 
           // 停止思考计时器并定格最终秒数
           function stopThinkTimer() {
-            // 仅在计时器仍在运行（真正从“思考中”切到“停止”）的那一刻定格秒数。
-            // 后续重复调用（如流结束时再调一次）不再重算，否则会把正文生成耗时也算进去。
+            // 仅在计时器仍在运行(真正从"思考中"切到"停止")的那一刻定格秒数。
+            // 后续重复调用(如流结束时再调一次)不再重算,否则会把正文生成耗时也算进去。
             if (thinkTimer) {
               clearInterval(thinkTimer);
               thinkTimer = null;
@@ -885,7 +888,7 @@
               }
             }
             if (tailTimer) {
-              // 顺带清尾帧定时器，避免向已结束/作废的请求继续写入
+              // 顺带清尾帧定时器,避免向已结束/作废的请求继续写入
               clearTimeout(tailTimer);
               tailTimer = null;
             }
@@ -900,17 +903,17 @@
           }
 
           function doRender(isFinal) {
-            if (isStale()) return; // 请求已作废或 bubble 已移除，不再写入
+            if (isStale()) return; // 请求已作废或 bubble 已移除,不再写入
 
-            // 无 bubble 场景（当前代码路径未使用，保留兼容）：拼接完整 HTML 回传
+            // 无 bubble 场景(当前代码路径未使用,保留兼容):拼接完整 HTML 回传
             if (!assistantBubble) {
               renderViaOnChunk(isFinal);
               return;
             }
 
-            // 推进 committed/pending 拆分：将最后一个段落边界之前的内容定稿。
-            // 为避免把未闭合的代码块（```）从中间切断导致渲染错乱，
-            // 只有当拟定稿部分的反引号成对（偶数）时才提交。
+            // 推进 committed/pending 拆分:将最后一个段落边界之前的内容定稿。
+            // 为避免把未闭合的代码块(```)从中间切断导致渲染错乱,
+            // 只有当拟定稿部分的反引号成对(偶数)时才提交。
             if (pendingMain && (isFinal || /\n\n/.test(pendingMain))) {
               let newlyCommitted = "";
               if (isFinal) {
@@ -931,7 +934,7 @@
               }
               if (newlyCommitted) {
                 committedMain += newlyCommitted;
-                // 拆成独立段落（以空行分隔），每段单独成一个 DOM 节点
+                // 拆成独立段落(以空行分隔),每段单独成一个 DOM 节点
                 newlyCommitted
                   .split(/\n{2,}/)
                   .map((s) => s.trim())
@@ -940,19 +943,19 @@
               }
             }
 
-            // 确保气泡内有思考槽与正文槽两个独立容器，只创建一次。
-            // 正文槽再拆为 committed（已定稿、不再重写）+ pending（生成中、每帧重写），
-            // 让已输出的段落 DOM 保持稳定，流式中也能正常选中/复制
+            // 确保气泡内有思考槽与正文槽两个独立容器,只创建一次。
+            // 正文槽再拆为 committed(已定稿、不再重写)+ pending(生成中、每帧重写),
+            // 让已输出的段落 DOM 保持稳定,流式中也能正常选中/复制
             let mainSlot = assistantBubble.querySelector(".ai-main-slot");
             if (!mainSlot) {
               assistantBubble.innerHTML =
                 '<div class="ai-think-slot"></div>' +
                 '<div class="ai-main-slot"><div class="ai-committed"></div><div class="ai-pending"></div></div>';
               mainSlot = assistantBubble.querySelector(".ai-main-slot");
-              renderedSegCount = 0; // 新容器，重置已 append 段数
+              renderedSegCount = 0; // 新容器,重置已 append 段数
             }
 
-            // 思考框：增量更新，从不重建，保留用户展开/折叠状态
+            // 思考框:增量更新,从不重建,保留用户展开/折叠状态
             if (reasoningContent) {
               const thinkSlot = assistantBubble.querySelector(".ai-think-slot");
               let det = thinkSlot.querySelector("details.ai-think-box");
@@ -965,14 +968,14 @@
               }
               const thinking = !isFinal && !mainContent;
               det.querySelector(".ai-think-summary").textContent = thinking
-                ? `💭 思考中… (${thinkSeconds}s)`
+                ? `💭 思考中... (${thinkSeconds}s)`
                 : `💭 思考过程 (耗时 ${thinkSeconds}s)`;
               det.querySelector(".ai-think-content").textContent =
                 reasoningContent;
             }
 
-            // 正文：committed 每段作为独立 DOM 节点，只 append 新增段落，旧节点永不重建
-            // （复制任何已完成段落都不受后续输出影响）；pending 每帧重写。两者都不影响思考框。
+            // 正文:committed 每段作为独立 DOM 节点,只 append 新增段落,旧节点永不重建
+            // (复制任何已完成段落都不受后续输出影响);pending 每帧重写。两者都不影响思考框。
             const committedEl = mainSlot.querySelector(".ai-committed");
             const pendingEl = mainSlot.querySelector(".ai-pending");
             if (committedEl) {
@@ -988,10 +991,10 @@
               }
               renderedSegCount = committedSegments.length;
             }
-            // pending 段渲染：committed 推进与思考框更新已在上方每帧执行完毕，
-            // 这里只对“正文未定稿段”的 marked.parse + innerHTML 做节流，降低长段落的重解析开销。
-            // 规则：①内容未变则跳过；②距上次渲染不足 PENDING_RENDER_MS 则跳过，但挂一个尾帧兜底
-            //       定时器保证最终会渲染；③isFinal（流结束）无条件完整渲染，绝不被节流跳过。
+            // pending 段渲染:committed 推进与思考框更新已在上方每帧执行完毕,
+            // 这里只对"正文未定稿段"的 marked.parse + innerHTML 做节流,降低长段落的重解析开销。
+            // 规则:1内容未变则跳过;2距上次渲染不足 PENDING_RENDER_MS 则跳过,但挂一个尾帧兜底
+            //       定时器保证最终会渲染;3isFinal(流结束)无条件完整渲染,绝不被节流跳过。
             if (pendingEl) {
               const PENDING_RENDER_MS = 80;
 
@@ -1017,16 +1020,16 @@
               };
 
               if (isFinal) {
-                renderPending(); // 流结束：强制渲染，定格最终态
+                renderPending(); // 流结束:强制渲染,定格最终态
               } else if (pendingMain === lastRenderedPending) {
-                // 内容未变（如仅思考计时刷新触发的本帧）：跳过 parse
+                // 内容未变(如仅思考计时刷新触发的本帧):跳过 parse
               } else if (
                 Date.now() - lastPendingRenderTs >=
                 PENDING_RENDER_MS
               ) {
                 renderPending();
               } else if (!tailTimer) {
-                // 距上次渲染过近：本帧跳过，挂尾帧兜底，保证这段增量最终会显示
+                // 距上次渲染过近:本帧跳过,挂尾帧兜底,保证这段增量最终会显示
                 tailTimer = setTimeout(() => {
                   tailTimer = null;
                   if (isStale()) return;
@@ -1036,13 +1039,13 @@
             }
           }
 
-          // 兼容旧的无 bubble 调用方：拼接完整 HTML 交给 onChunk
+          // 兼容旧的无 bubble 调用方:拼接完整 HTML 交给 onChunk
           function renderViaOnChunk(isFinal) {
             let htmlParts = [];
             if (reasoningContent) {
               const thinking = !isFinal && !mainContent;
               const summaryText = thinking
-                ? `💭 思考中… (${thinkSeconds}s)`
+                ? `💭 思考中... (${thinkSeconds}s)`
                 : `💭 思考过程 (耗时 ${thinkSeconds}s)`;
               htmlParts.push(
                 `<details style="margin-bottom:8px;"><summary style="color:var(--text-mute);font-size:12px;">${summaryText}</summary>` +
@@ -1081,22 +1084,22 @@
             processLines(lines);
           }
 
-          // 流结束，停止思考计时
+          // 流结束,停止思考计时
           stopThinkTimer();
 
-          // 冲刷解码器与最后一行（末尾可能没有换行符，否则丢失最后一个 token）
+          // 冲刷解码器与最后一行(末尾可能没有换行符,否则丢失最后一个 token)
           buffer += decoder.decode();
           if (buffer.trim()) processLines([buffer]);
 
-          if (isStale()) return; // 请求已作废，不再触发完成/错误回调
+          if (isStale()) return; // 请求已作废,不再触发完成/错误回调
 
-          // 如果整个流未产生任何内容，可能是接口返回了非 SSE 的错误体
+          // 如果整个流未产生任何内容,可能是接口返回了非 SSE 的错误体
           if (!mainContent && !reasoningContent) {
             isRequesting = false;
             currentRequest = null;
             onError(
               receivedError ||
-                "AI 未返回内容，请检查模型名称、API Key 或接口配置",
+                "AI 未返回内容,请检查模型名称、API Key 或接口配置",
             );
             updateChatSendButtonState();
             return;
@@ -1114,7 +1117,7 @@
           updateChatSendButtonState();
         } catch (err) {
           stopThinkTimer();
-          if (isStale()) return; // 主动中断导致的异常，静默忽略
+          if (isStale()) return; // 主动中断导致的异常,静默忽略
           isRequesting = false;
           currentRequest = null;
           onError("流读取中断");
@@ -1125,10 +1128,31 @@
         if (isStale()) return;
         isRequesting = false;
         currentRequest = null;
-        onError("网络请求失败，请检查配置或网络");
+        onError("网络请求失败,请检查配置或网络");
         updateChatSendButtonState();
       },
     });
+  }
+
+  // 最后一次选中的模型按服务商分别持久化(不同服务商模型集合不同)
+  function lastModelKey(provider) {
+    return providerKey("ai_last_model", provider);
+  }
+
+  // 重建模型下拉选项,并恢复"最后一次选中的模型";
+  // 若存的值不在当前主/备模型列表里(用户改过模型名)则回退到主模型
+  function refreshModelSelect() {
+    const select = document.getElementById("ai-model-select");
+    if (!select) return;
+    let html = `<option value="${aiConfig.model1}">${aiConfig.model1} (主)</option>`;
+    if (aiConfig.model2) {
+      html += `<option value="${aiConfig.model2}">${aiConfig.model2} (备)</option>`;
+    }
+    select.innerHTML = html;
+    const saved = GM_getValue(lastModelKey(aiConfig.provider), "");
+    if (saved && (saved === aiConfig.model1 || saved === aiConfig.model2)) {
+      select.value = saved;
+    }
   }
 
   function updateChatSendButtonState() {
@@ -1136,7 +1160,7 @@
     const textarea = document.getElementById("ai-chat-textarea");
     if (!btn || !textarea) return;
 
-    // 请求进行中：按钮变为可点击的「终止」，点击中断回答
+    // 请求进行中:按钮变为可点击的「终止」,点击中断回答
     if (isRequesting) {
       btn.textContent = "⏹";
       btn.title = "终止生成";
@@ -1158,7 +1182,7 @@
       btn.textContent = "总结";
       btn.title = "生成视频总结";
       btn.disabled = false;
-      btn.classList.add("ai-chat-pill"); // 总结态：带文字的胶囊按钮
+      btn.classList.add("ai-chat-pill"); // 总结态:带文字的胶囊按钮
       textarea.placeholder = "点击“总结”获取视频内容总结...";
     } else {
       btn.textContent = "↑";
@@ -1169,14 +1193,14 @@
     }
   }
 
-  // 更新顶部 token 用量显示。优先用接口返回的 usage；若接口未返回则隐藏
-  // 重置会话 token 累计（切换视频/重新总结开启新会话时）
+  // 更新顶部 token 用量显示。优先用接口返回的 usage;若接口未返回则隐藏
+  // 重置会话 token 累计(切换视频/重新总结开启新会话时)
   function resetSessionTokens() {
     sessionTokens = { input: 0, output: 0 };
   }
 
-  // 更新顶部 token 用量：显示本次请求用量 + 本次会话累计。
-  // usage 为 null 时仅重新渲染（不累加）；无任何数据时隐藏。
+  // 更新顶部 token 用量:显示本次请求用量 + 本次会话累计。
+  // usage 为 null 时仅重新渲染(不累加);无任何数据时隐藏。
   function updateTokenBar(usage) {
     const bar = document.getElementById("ai-token-bar");
     if (!bar) return;
@@ -1193,10 +1217,10 @@
       bar.style.display = "none";
       return;
     }
-    const lastInput = usage?.prompt_tokens ?? "—";
-    const lastOutput = usage?.completion_tokens ?? "—";
+    const lastInput = usage?.prompt_tokens ?? "-";
+    const lastOutput = usage?.completion_tokens ?? "-";
     bar.innerHTML =
-      `<span title="本次请求：输入(含字幕/上下文) / 输出(回答)">本次 ↑${lastInput} ↓${lastOutput}</span>` +
+      `<span title="本次请求:输入(含字幕/上下文) / 输出(回答)">本次 ↑${lastInput} ↓${lastOutput}</span>` +
       `<span title="本次会话累计消耗">累计 ↑${sessionTokens.input} ↓${sessionTokens.output}</span>`;
     bar.style.display = "flex";
   }
@@ -1214,10 +1238,10 @@
     return bubble;
   }
 
-  // 在 AI 气泡末尾附加「重新生成」按钮（避免重复添加）
+  // 在 AI 气泡末尾附加「重新生成」按钮(避免重复添加)
   function attachRegenButton(bubble) {
     if (!bubble) return;
-    // 只保留最后一条 AI 回答的重新生成按钮，清除其他气泡上的旧按钮
+    // 只保留最后一条 AI 回答的重新生成按钮,清除其他气泡上的旧按钮
     const chatContainer = document.getElementById("ai-panel-chat");
     if (chatContainer) {
       chatContainer
@@ -1231,11 +1255,11 @@
     bubble.appendChild(btn);
   }
 
-  // 重新生成最后一条 AI 回答：复用其之前的用户输入/总结上下文
+  // 重新生成最后一条 AI 回答:复用其之前的用户输入/总结上下文
   function regenerateLast(bubble) {
     if (isRequesting) return; // 生成中不允许重新生成
     if (!aiConfig.apiKey || aiConfig.apiKey.trim() === "") return;
-    // 若历史末尾是上一次已完成的 assistant 回答，先移除（被终止/出错的不在历史中）
+    // 若历史末尾是上一次已完成的 assistant 回答,先移除(被终止/出错的不在历史中)
     if (
       chatHistory.length &&
       chatHistory[chatHistory.length - 1].role === "assistant"
@@ -1250,10 +1274,10 @@
     runChatStream(bubble);
   }
 
-  // 统一的流式对话调用封装：接管 onChunk/onComplete/onError 重复样板。
-  // onDone(plainText) 由调用方决定完成后的额外处理（如总结场景更新提示文案）。
+  // 统一的流式对话调用封装:接管 onChunk/onComplete/onError 重复样板。
+  // onDone(plainText) 由调用方决定完成后的额外处理(如总结场景更新提示文案)。
   function runChatStream(assistantBubble, onDone) {
-    activeAssistantBubble = assistantBubble; // 记录活动气泡，供终止时标注
+    activeAssistantBubble = assistantBubble; // 记录活动气泡,供终止时标注
     requestAIStream(
       chatHistory,
       (htmlToDisplay) => {
@@ -1274,17 +1298,17 @@
     );
   }
 
-  // 获取当前视频标题：依次尝试多个 DOM 选择器，均未命中时回退到 document.title。
+  // 获取当前视频标题:依次尝试多个 DOM 选择器,均未命中时回退到 document.title。
   function getVideoTitle() {
     for (const sel of SELECTORS.videoTitle) {
       const el = document.querySelector(sel);
       if (el) {
-        // 优先用 title 属性（完整标题，不受省略号影响），其次用可见文本
+        // 优先用 title 属性(完整标题,不受省略号影响),其次用可见文本
         const t = (el.getAttribute("title") || el.textContent || "").trim();
         if (t) return t;
       }
     }
-    // 回退：去掉 B 站页面标题末尾的“_哔哩哔哩_bilibili”等后缀
+    // 回退:去掉 B 站页面标题末尾的"_哔哩哔哩_bilibili"等后缀
     const docTitle = (document.title || "").trim();
     if (docTitle) {
       return docTitle
@@ -1296,30 +1320,30 @@
   }
 
   function triggerSummary(plainText) {
-    abortCurrentRequest(); // 中断上一次可能正在进行的请求（如重复点击「重新总结」）
+    abortCurrentRequest(); // 中断上一次可能正在进行的请求(如重复点击「重新总结」)
     const chatContainer = document.getElementById("ai-panel-chat");
     chatContainer.innerHTML = "";
     chatHistory = [];
-    resetSessionTokens(); // 重新总结开启新会话，累计清零
+    resetSessionTokens(); // 重新总结开启新会话,累计清零
     updateTokenBar(null);
 
     const systemPrompt =
       "你是一个得力的视频内容总结与问答助手。请直接输出 Markdown 格式的排版内容。";
 
-    // 抓取当前视频标题，并将 prompt 中的 {{video_title}} 占位符动态替换为真实标题
+    // 抓取当前视频标题,并将 prompt 中的 {{video_title}} 占位符动态替换为真实标题
     currentVideoTitle = getVideoTitle();
-    const titleForPrompt = currentVideoTitle || "（未获取到标题）";
+    const titleForPrompt = currentVideoTitle || "(未获取到标题)";
     const promptWithTitle = aiConfig.prompt.replace(
       /\{\{\s*video_title\s*\}\}/g,
       titleForPrompt,
     );
-    // 如果用户的自定义 prompt 里没有用到 {{video_title}} 占位符，则在字幕前补上标题信息，避免丢失
+    // 如果用户的自定义 prompt 里没有用到 {{video_title}} 占位符,则在字幕前补上标题信息,避免丢失
     const usedPlaceholder = /\{\{\s*video_title\s*\}\}/.test(aiConfig.prompt);
     const titleBlock =
       !usedPlaceholder && currentVideoTitle
-        ? `视频标题：${currentVideoTitle}\n\n`
+        ? `视频标题:${currentVideoTitle}\n\n`
         : "";
-    const userPrompt = `${promptWithTitle}\n\n${titleBlock}字幕内容：\n${plainText}`;
+    const userPrompt = `${promptWithTitle}\n\n${titleBlock}字幕内容:\n${plainText}`;
 
     chatHistory.push({ role: "system", content: systemPrompt });
     chatHistory.push({ role: "user", content: userPrompt });
@@ -1334,7 +1358,7 @@
 
   function handleSendChat() {
     if (isRequesting) {
-      stopCurrentGeneration(); // 生成中点击终止按钮，中断当前回答
+      stopCurrentGeneration(); // 生成中点击终止按钮,中断当前回答
       return;
     }
 
@@ -1381,7 +1405,7 @@
     panel.style.display = "flex";
     minTab.style.display = "none";
 
-    if (chatHistory.length > 0) return; // 如果已经总结过，保留对话历史不重新刷新
+    if (chatHistory.length > 0) return; // 如果已经总结过,保留对话历史不重新刷新
 
     const chatContainer = document.getElementById("ai-panel-chat");
     if (!aiConfig.apiKey) {
@@ -1405,7 +1429,7 @@
       });
   }
 
-  // 创建整个 AI UI（侧拉常驻按钮 + 对话面板）
+  // 创建整个 AI UI(侧拉常驻按钮 + 对话面板)
   function createAIPanel() {
     if (document.getElementById("bili-ai-panel")) return;
 
@@ -1414,7 +1438,7 @@
     minTab.innerHTML = `<span>AI总结</span>`;
     document.body.appendChild(minTab);
 
-    // 应用保存的拖拽位置（仅上下，始终贴右侧），并限制在可视区内
+    // 应用保存的拖拽位置(仅上下,始终贴右侧),并限制在可视区内
     function applyMinTabPos(top) {
       if (typeof top !== "number") return;
       const h = minTab.offsetHeight || 110;
@@ -1424,8 +1448,8 @@
     }
     applyMinTabPos(GM_getValue("minTabTop", null));
 
-    // 拖拽逻辑：仅纵向移动，移动超过阈值才视为拖拽，否则仍为点击（展开面板）
-    // mousemove/mouseup 仅在拖拽期间（mousedown 后）绑定到 document，拖拽结束立即移除，
+    // 拖拽逻辑:仅纵向移动,移动超过阈值才视为拖拽,否则仍为点击(展开面板)
+    // mousemove/mouseup 仅在拖拽期间(mousedown 后)绑定到 document,拖拽结束立即移除,
     // 避免未拖拽时每次鼠标移动都进入回调。
     let dragging = false;
     let moved = false;
@@ -1436,7 +1460,7 @@
       if (!dragging) return;
       const dy = e.clientY - startY;
       if (!moved && Math.abs(dy) < 5) return; // 小于阈值不算拖拽
-      if (!moved) minTab.classList.add("dragging"); // 首次超阈值：关掉 transition 使其跟手
+      if (!moved) minTab.classList.add("dragging"); // 首次超阈值:关掉 transition 使其跟手
       moved = true;
       const h = minTab.offsetHeight;
       const top = Math.max(0, Math.min(originTop + dy, window.innerHeight - h));
@@ -1451,7 +1475,7 @@
       document.removeEventListener("mousemove", onDragMove);
       document.removeEventListener("mouseup", onDragEnd);
       if (moved) {
-        GM_setValue("minTabTop", minTab.getBoundingClientRect().top); // 持久化，切换视频后保留
+        GM_setValue("minTabTop", minTab.getBoundingClientRect().top); // 持久化,切换视频后保留
       }
     }
 
@@ -1512,7 +1536,7 @@
                     <input type="password" id="set-apikey" class="ai-input" style="width: 62%;" value="${aiConfig.apiKey}" placeholder="API Key (sk-...)">
                 </div>
                 <input type="text" id="set-endpoint" class="ai-input" value="${aiConfig.endpoint}" placeholder="https://api.openai.com/v1/chat/completions" style="display: ${aiConfig.provider === "custom" ? "block" : "none"};">
-                <div id="set-endpoint-hint" style="display: ${aiConfig.provider === "custom" ? "block" : "none"}; color: var(--text-faint); font-size: 11px; margin: 2px 0 4px 0;">请填写完整的 Chat Completions 地址，例如：https://api.openai.com/v1/chat/completions</div>
+                <div id="set-endpoint-hint" style="display: ${aiConfig.provider === "custom" ? "block" : "none"}; color: var(--text-faint); font-size: 11px; margin: 2px 0 4px 0;">请填写完整的 Chat Completions 地址,例如:https://api.openai.com/v1/chat/completions</div>
 
                 <div class="ai-settings-row">
                     <input type="text" id="set-model1" class="ai-input" value="${aiConfig.model1}" placeholder="主模型">
@@ -1525,13 +1549,13 @@
                     </label>
                 </div>
                 <div id="set-extrabody-row" style="margin: 4px 0 8px 0; display: ${aiConfig.provider === "custom" ? "block" : "none"};">
-                    <div style="color: var(--text-mute); font-size: 12px; margin-bottom: 4px;">额外请求参数 extra_body (JSON，可选)：</div>
-                    <textarea id="set-extrabody" class="ai-input" style="height: 60px; resize: vertical; margin-bottom: 0; font-family: monospace; font-size: 12px;" placeholder='例如：{"enable_thinking": true} 或 {"reasoning_effort": "high"}'>${escapeHtml(aiConfig.extraBody || "")}</textarea>
+                    <div style="color: var(--text-mute); font-size: 12px; margin-bottom: 4px;">额外请求参数 extra_body (JSON,可选):</div>
+                    <textarea id="set-extrabody" class="ai-input" style="height: 60px; resize: vertical; margin-bottom: 0; font-family: monospace; font-size: 12px;" placeholder='例如:{"enable_thinking": true} 或 {"reasoning_effort": "high"}'>${escapeHtml(aiConfig.extraBody || "")}</textarea>
                     <div id="set-extrabody-err" style="display:none; color: var(--err, #d9363e); font-size: 11px; margin-top: 4px;"></div>
                 </div>
                 <div style="margin: 0 0 4px 0; color: var(--text-mute);">自定义总结 Prompt:</div>
-                <textarea id="set-prompt" class="ai-input" style="height: 110px; resize: vertical; margin-bottom: 0;" placeholder="要求 AI 如何进行总结...">${aiConfig.prompt}</textarea>
-                <div style="margin-top: 4px; color: var(--text-faint); font-size: 11px;">提示：可在 Prompt 中使用 <code>{{video_title}}</code> 占位符，总结时会自动替换为当前视频标题。</div>
+                <textarea id="set-prompt" class="ai-input" style="height: 110px; resize: vertical; margin-bottom: 0;" placeholder="要求 AI 如何进行总结...">${escapeHtml(aiConfig.prompt || "")}</textarea>
+                <div style="margin-top: 4px; color: var(--text-faint); font-size: 11px;">提示:可在 Prompt 中使用 <code>{{video_title}}</code> 占位符,总结时会自动替换为当前视频标题。</div>
                 <div style="margin-top: 6px; color: var(--text-faint); font-size: 11px; text-align: center;">再次点击 ⚙️ 即可保存并关闭设置</div>
             </div>
 
@@ -1544,7 +1568,11 @@
         `;
     document.body.appendChild(panel);
 
-    // 设置栏：服务商切换事件绑定
+    // 用 JS 直接回填 textarea 值，绕开 HTML 解析对“标签内容”的处理（前导换行被剔除、
+    // 实体被解码等），保证 textarea 显示值与存储值逐字节一致，避免保存时误判为“未变更”。
+    document.getElementById("set-prompt").value = aiConfig.prompt || "";
+
+    // 设置栏:服务商切换事件绑定
     const provSelect = document.getElementById("set-provider");
     let prevProvider = aiConfig.provider; // 记录切换前的服务商
     provSelect.addEventListener("change", function () {
@@ -1556,7 +1584,7 @@
       const thinkRow = document.getElementById("set-thinking-row");
       const ebRow = document.getElementById("set-extrabody-row");
 
-      // 1) 先暂存切换前服务商在表单里的当前输入（避免切走后丢失未保存的修改）
+      // 1) 先暂存切换前服务商在表单里的当前输入(避免切走后丢失未保存的修改)
       GM_setValue(providerKey("ai_api_key", prevProvider), apikeyInput.value);
       GM_setValue(providerKey("ai_model1", prevProvider), m1Input.value);
       GM_setValue(providerKey("ai_model2", prevProvider), m2Input.value);
@@ -1573,7 +1601,7 @@
       epInput.value = loadEndpoint(target);
       ebInput.value = GM_getValue(providerKey("ai_extra_body", target), "");
 
-      // 3) 自定义服务商：显示 endpoint + extra_body，隐藏思考勾选；其余相反
+      // 3) 自定义服务商:显示 endpoint + extra_body,隐藏思考勾选;其余相反
       const isCustom = target === "custom";
       epInput.style.display = isCustom ? "block" : "none";
       const epHint = document.getElementById("set-endpoint-hint");
@@ -1584,7 +1612,7 @@
       prevProvider = target;
     });
 
-    // extra_body JSON 格式校验：输入时实时提示，空内容视为合法
+    // extra_body JSON 格式校验:输入时实时提示,空内容视为合法
     function validateExtraBody() {
       const eb = document.getElementById("set-extrabody");
       const err = document.getElementById("set-extrabody-err");
@@ -1608,7 +1636,7 @@
         eb.style.borderColor = "";
         return true;
       } catch (e) {
-        err.textContent = "⚠️ JSON 格式错误：" + e.message;
+        err.textContent = "⚠️ JSON 格式错误:" + e.message;
         err.style.display = "block";
         eb.style.borderColor = "#d9363e";
         return false;
@@ -1619,9 +1647,9 @@
       .addEventListener("input", validateExtraBody);
     validateExtraBody(); // 初始校验一次
 
-    // 防止面板内滚动穿透到底层视频页面：在整个面板上统一拦截滚轮。
-    // 找到事件路径上最近的可滚动容器；若存在且未到边界则放行，
-    // 到边界、不可滚动或点在空白区域时一律 preventDefault，防止触发整页滚动。
+    // 防止面板内滚动穿透到底层视频页面:在整个面板上统一拦截滚轮。
+    // 找到事件路径上最近的可滚动容器;若存在且未到边界则放行,
+    // 到边界、不可滚动或点在空白区域时一律 preventDefault,防止触发整页滚动。
     panel.addEventListener(
       "wheel",
       (e) => {
@@ -1640,7 +1668,7 @@
           node = node.parentElement;
         }
         if (!scroller) {
-          e.preventDefault(); // 无可滚动区域（header/输入区/空白），直接吃掉
+          e.preventDefault(); // 无可滚动区域(header/输入区/空白),直接吃掉
           return;
         }
         const { scrollTop, scrollHeight, clientHeight } = scroller;
@@ -1662,28 +1690,28 @@
       .getElementById("ai-minimize-btn")
       .addEventListener("click", collapsePanel);
 
-    // 键盘快捷键：Esc 打断当前回复；s 唤起/收起 AI 总结（输入状态不触发）
+    // 键盘快捷键:Esc 打断当前回复;s 唤起/收起 AI 总结(输入状态不触发)
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
-        // 1) 回答中：打断生成
+        // 1) 回答中:打断生成
         if (isRequesting) {
           stopCurrentGeneration();
           return;
         }
-        // 2) 焦点在面板输入框：先取消聚焦
+        // 2) 焦点在面板输入框:先取消聚焦
         const chatInput = document.getElementById("ai-chat-textarea");
         if (chatInput && document.activeElement === chatInput) {
           chatInput.blur();
           return;
         }
-        // 3) 面板已弹出且未聚焦输入框：收起面板
+        // 3) 面板已弹出且未聚焦输入框:收起面板
         if (!isElHidden(panel)) {
           collapsePanel();
         }
         return;
       }
 
-      // 在输入框/文本区/可编辑元素中打字，或带修饰键时不触发
+      // 在输入框/文本区/可编辑元素中打字,或带修饰键时不触发
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target;
       const tag = t && t.tagName;
@@ -1697,7 +1725,7 @@
 
       if (e.key === "s" || e.key === "S") {
         e.preventDefault();
-        // s 切换：已弹出则收起，未弹出则唤起
+        // s 切换:已弹出则收起,未弹出则唤起
         if (!isElHidden(panel)) {
           collapsePanel();
         } else {
@@ -1713,10 +1741,10 @@
       triggerSummary(currentSubtitle);
     });
 
-    // 保存设置：读取面板表单写回 aiConfig 并持久化。仅在确实有改动时写入，返回是否发生了变更
+    // 保存设置:读取面板表单写回 aiConfig 并持久化。仅在确实有改动时写入,返回是否发生了变更
     function saveSettings() {
       let changed = false;
-      // 当前面板选中的服务商（决定 perProvider 项存到哪个后缀）
+      // 当前面板选中的服务商(决定 perProvider 项存到哪个后缀)
       const provEl = document.getElementById(CONFIG_DICT.provider.el);
       const curProvider = provEl ? provEl.value : aiConfig.provider;
       for (let k in CONFIG_DICT) {
@@ -1726,7 +1754,7 @@
         if (newVal === aiConfig[k]) continue;
         aiConfig[k] = newVal;
         if (config.perProvider) {
-          // endpoint 对 aliyun/deepseek 为固定值，无需存储；其余按服务商后缀存
+          // endpoint 对 aliyun/deepseek 为固定值,无需存储;其余按服务商后缀存
           if (!(k === "endpoint" && curProvider !== "custom")) {
             GM_setValue(providerKey(config.key, curProvider), newVal);
           }
@@ -1737,11 +1765,7 @@
       }
 
       if (changed) {
-        const select = document.getElementById("ai-model-select");
-        select.innerHTML = `<option value="${aiConfig.model1}">${aiConfig.model1} (主)</option>`;
-        if (aiConfig.model2) {
-          select.innerHTML += `<option value="${aiConfig.model2}">${aiConfig.model2} (备)</option>`;
-        }
+        refreshModelSelect(); // 模型名可能变了，重建下拉并恢复最后选中项
         updateChatSendButtonState();
       }
       return changed;
@@ -1759,7 +1783,7 @@
       .getElementById("ai-setting-toggle")
       .addEventListener("click", () => {
         const box = document.getElementById("ai-panel-settings-container");
-        // 初始隐藏由 CSS 类控制，内联 style.display 为空；isElHidden 会处理该回退
+        // 初始隐藏由 CSS 类控制,内联 style.display 为空;isElHidden 会处理该回退
         const isOpen = !isElHidden(box);
         if (isOpen) {
           closeSettings();
@@ -1768,7 +1792,7 @@
         }
       });
 
-    // 设置面板打开时，点击面板内的非设置区域（聊天区/顶栏/输入区等）自动保存并关闭
+    // 设置面板打开时,点击面板内的非设置区域(聊天区/顶栏/输入区等)自动保存并关闭
     panel.addEventListener("mousedown", (e) => {
       const box = document.getElementById("ai-panel-settings-container");
       if (isElHidden(box)) return;
@@ -1785,11 +1809,11 @@
     document
       .getElementById("ai-chat-textarea")
       .addEventListener("keydown", (e) => {
-        // 输入法合成中（如中文拼音选词）按 Enter 是确认候选词，不应触发发送
+        // 输入法合成中(如中文拼音选词)按 Enter 是确认候选词,不应触发发送
         if (e.isComposing || e.keyCode === 229) return;
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
-          // 回答进行中：Enter 不终止生成（终止只能点发送按钮的 ⏹）
+          // 回答进行中:Enter 不终止生成(终止只能点发送按钮的 ⏹)
           if (isRequesting) return;
           handleSendChat();
         }
@@ -1800,6 +1824,14 @@
       this.style.height = "24px";
       this.style.height = this.scrollHeight + "px";
     });
+
+    // 模型下拉：切换时按服务商持久化“最后一次选中的模型”，下次打开页面/视频恢复
+    document
+      .getElementById("ai-model-select")
+      .addEventListener("change", function () {
+        GM_setValue(lastModelKey(aiConfig.provider), this.value);
+      });
+    refreshModelSelect(); // 恢复上次选中的模型
 
     // 初始化按钮状态
     updateChatSendButtonState();
@@ -1823,7 +1855,7 @@
     });
   }
 
-  // 【全局自动检测】针对外部常驻悬浮窗，如果找不到URL，尝试唤起字幕菜单获取
+  // 【全局自动检测】针对外部常驻悬浮窗,如果找不到URL,尝试唤起字幕菜单获取
   async function ensureSubtitleAndExecuteGlobal(actionCallback) {
     if (getSubtitleUrls().length > 0) {
       actionCallback();
@@ -1846,7 +1878,7 @@
     if (langItem) {
       langItem.click();
     } else {
-      showInfoBar("未检测到字幕资源，请确认本视频是否带有字幕", "error");
+      showInfoBar("未检测到字幕资源,请确认本视频是否带有字幕", "error");
       return;
     }
 
@@ -1854,7 +1886,7 @@
       await waitForSubtitleUrls();
       actionCallback();
     } catch (err) {
-      showInfoBar("自动获取字幕超时，请手动点击一下视频字幕设置。", "error");
+      showInfoBar("自动获取字幕超时,请手动点击一下视频字幕设置。", "error");
     }
   }
 
@@ -1867,7 +1899,7 @@
       try {
         await waitForSubtitleUrls();
       } catch (err) {
-        showInfoBar("自动获取字幕超时，请手动点击一下字幕语言。", "error");
+        showInfoBar("自动获取字幕超时,请手动点击一下字幕语言。", "error");
         return;
       }
     }
@@ -1875,7 +1907,7 @@
   }
 
   function createGlobalObserver() {
-    // 向字幕语言项注入“[复制]”按钮
+    // 向字幕语言项注入"[复制]"按钮
     function injectCopyButtons() {
       const subtitleItems = document.querySelectorAll(
         SELECTORS.subtitleLangItem,
@@ -1913,7 +1945,7 @@
       });
     }
 
-    // 防抖：B 站 SPA 下 DOM 变动极频繁，合并高频触发，避免每次变动都扫全量 DOM
+    // 防抖:B 站 SPA 下 DOM 变动极频繁,合并高频触发,避免每次变动都扫全量 DOM
     let debounceTimer = null;
     const observer = new MutationObserver((mutations) => {
       let hasAddedNodes = false;
@@ -1932,27 +1964,27 @@
       }, 100);
     });
 
-    // 字幕语言项仅存在于播放器控制栏内。将 observer 限定在播放器容器上，
-    // 避免监听整个 document.body（弹幕/进度条等高频变动会让 body 层 observer 长期空转）。
-    // 播放器在 SPA 下可能延迟渲染，未出现时先轻量轮询等待。
+    // 字幕语言项仅存在于播放器控制栏内。将 observer 限定在播放器容器上,
+    // 避免监听整个 document.body(弹幕/进度条等高频变动会让 body 层 observer 长期空转)。
+    // 播放器在 SPA 下可能延迟渲染,未出现时先轻量轮询等待。
     let bootstrapTimer = null;
-    let observedPlayer = null; // 当前已监听的播放器节点（SPA 切视频时可能被替换）
+    let observedPlayer = null; // 当前已监听的播放器节点(SPA 切视频时可能被替换)
     function attachObserver() {
       const player = document.querySelector(SELECTORS.playerContainer);
       if (!player) return false;
       if (player === observedPlayer) return true; // 同一节点无需重复绑定
-      observer.disconnect(); // 节点被替换：先解除旧的再监听新的
+      observer.disconnect(); // 节点被替换:先解除旧的再监听新的
       observedPlayer = player;
       injectCopyButtons(); // 首次附着后先补一次
       observer.observe(player, { childList: true, subtree: true });
       return true;
     }
-    // 暴露给 SPA 路由处理：切视频可能替换播放器节点，需重新绑定
+    // 暴露给 SPA 路由处理:切视频可能替换播放器节点,需重新绑定
     reattachSubtitleObserver = function () {
       if (!attachObserver() && !bootstrapTimer) startBootstrap();
     };
     function startBootstrap() {
-      let tries = 60; // 最多等 ~30s，仍未出现则放弃（本页无播放器）
+      let tries = 60; // 最多等 ~30s,仍未出现则放弃(本页无播放器)
       bootstrapTimer = setInterval(() => {
         if (attachObserver() || --tries <= 0) {
           clearInterval(bootstrapTimer);
@@ -2000,13 +2032,13 @@
             window._biliSubtitleUrls = [];
             cachedScriptSubtitleUrls = null;
 
-            // 播放器节点可能被换成新视频的，重新绑定字幕按钮 observer
+            // 播放器节点可能被换成新视频的,重新绑定字幕按钮 observer
             if (typeof reattachSubtitleObserver === "function") {
               reattachSubtitleObserver();
             }
 
             // Reset state
-            abortCurrentRequest(); // 中断可能正在进行的 AI 请求，避免向旧面板写入及状态卡死
+            abortCurrentRequest(); // 中断可能正在进行的 AI 请求,避免向旧面板写入及状态卡死
             currentSubtitle = "";
             chatHistory = [];
 
@@ -2017,11 +2049,11 @@
                 '<div class="chat-bubble system">准备就绪。</div>';
               chatContainer.scrollTop = 0;
             }
-            updateTokenBar(null); // 切换视频，隐藏旧的 token 统计
-            resetSessionTokens(); // 新视频是新会话，累计清零
+            updateTokenBar(null); // 切换视频,隐藏旧的 token 统计
+            resetSessionTokens(); // 新视频是新会话,累计清零
             updateChatSendButtonState();
 
-            // 切换视频时若面板未收起，自动收起回侧栏
+            // 切换视频时若面板未收起,自动收起回侧栏
             const aiPanel = document.getElementById("bili-ai-panel");
             const minTab = document.getElementById("bili-ai-minimized");
             if (aiPanel && minTab && !isElHidden(aiPanel)) {
