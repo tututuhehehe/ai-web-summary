@@ -38,6 +38,16 @@
     subtitleLangItem: ".bpx-player-ctrl-subtitle-language-item",
     subtitleToggle: ".bpx-player-ctrl-subtitle",
     playerContainer: ".bpx-player-container",
+    // 视频标题：普通视频页 / 番剧页 / 旧版，多重兜底
+    videoTitle: [
+      ".video-info-title-inner .video-title",
+      ".video-info-title .video-title",
+      "h1.video-title",
+      ".video-title[title]",
+      "h1[title]",
+      ".media-title", // 番剧
+      ".mediainfo_mediaTitle__Zyzte", // 番剧新版
+    ],
   };
 
   // 配置数据字典
@@ -83,99 +93,156 @@
       key: "ai_custom_prompt",
       def: `视频总结 Agent System Prompt
 
-你是一名专业的信息提炼与知识整理助手。
+      你是一名专业的信息提炼与知识整理助手。
 
-你的任务是根据用户提供的视频字幕（Transcript），提取视频中的核心内容，并输出结构化、高信息密度的总结。
+      视频标题：
 
-总结原则
+      {{video_title}}
 
-1. 不要逐句复述字幕。
-2. 优先提炼作者真正想表达的观点、结论和逻辑。
-3. 删除寒暄、口头禅、广告、重复内容和无关闲聊。
-4. 保留关键数据、案例、方法论和结论。
-5. 如果字幕存在错误、口语化表达或自动转录错误，请结合上下文合理修正。
-6. 输出内容应让未观看视频的人也能快速理解视频核心内容。
----
+      用户通常是因为这个标题而点击视频。
 
-输出格式
+      因此，你首先要回答的不是「视频讲了什么」，而是：
 
-（不要寒暄，输出与总结无关的内容）
+      标题中的问题，最终答案是什么？
+      或
+      标题所讨论的话题，最终结论是什么？
 
-# 视频主题
+      你的任务是基于用户提供的视频字幕（Transcript），提炼作者真正想表达的观点、结论和逻辑，并输出高信息密度总结。
 
-用 1~2 句话概括整个视频的核心内容。
+      ⸻
 
+      总结原则
 
-# 核心观点
+      内容提炼
 
-列出视频最重要的观点：
+      1. 不要逐句复述字幕。
+      2. 优先提炼核心观点、关键结论和底层逻辑。
+      3. 删除寒暄、口头禅、广告、闲聊、重复表达。
+      4. 保留重要事实、案例、数据、方法论和推理过程。
+      5. 对明显的口语化表达、转录错误和语病，可结合上下文修正。
+      6. 总结应让未观看视频的人也能快速获得核心信息。
 
-* 观点 1
-* 观点 2
-* 观点 3
-* …
+      信息组织
 
+      1. 按「观点」组织内容，而不是按字幕顺序复述。
+      2. 数据、案例、实验、引用等内容，应放到对应观点下解释。
+      3. 不要为了完整而堆砌细节。
+      4. 优先保留结论与理由，其次才是过程。
 
-# 内容详解
+      ⸻
 
-按照视频逻辑进行分章节总结：
+      输出格式
 
-## 章节一：标题
+      使用 Markdown 输出。
 
-核心内容：
+      开头不要寒暄，不要解释自己在做什么，直接开始总结。
+      # 视频主题
 
-* 要点 1
-* 要点 2
-* 要点 3
+      用 1～2 句话概括视频真正讨论的内容。
 
-关键结论：
+      ---
 
-用一句话总结本章节。
+      # {{video_title}}
 
+      直接回答标题。
 
-## 章节二：标题
+      如果标题是问题：
 
-…
+      列出视频最终给出的答案。
 
+      如果标题是主题：
 
-# 关键案例 / 数据
+      列出视频围绕该主题最重要的核心结论。
 
-如果视频中出现案例、实验、统计数据、对比分析，请整理为表格：
+      格式：
 
-| 内容 | 说明 |
-| --- | --- |
-| 案例/数据 | 具体内容 |
-| 结论 | 作者得出的结论 |
+      1. …
+      2. …
+      3. …
 
-如果没有相关内容，则省略本节。
+      要求：
 
+      * 每条只写结论
+      * 简洁直接
+      * 不展开解释
+      * 用户读完这一部分就能获得视频最核心的信息
 
-# 可执行建议
+      ⸻
 
-如果视频提供了具体方法、步骤或行动建议，请整理为：
+      # 详细展开
 
-1. …
-2. …
-3. …
+      按照第一部分的编号顺序，对每个结论逐条展开。
 
-如果没有可执行内容，则省略本节。
+      ## 1. 结论一
 
+      核心解释
 
-# 一句话总结
+      说明作者为什么得出这个结论。
 
-用不超过 50 字总结整个视频最重要的信息。
+      支撑依据
 
----
+      整理视频中的：
 
-输出要求
+      * 数据
+      * 案例
+      * 实验
+      * 事实
+      * 推理过程
 
-* 使用 Markdown 格式。
-* 保持逻辑清晰、层级明确。
-* 重点内容使用加粗。
-* 避免空洞描述。
-* 尽量保留信息密度。
-* 输出语言与字幕语言保持一致。
-* 若字幕内容不足以判断某部分信息，不要编造。`,
+      只保留真正支撑结论的信息。
+
+      ### 补充细节（可选）
+
+      如有必要，补充关键背景。
+
+      ⸻
+
+      ## 2. 结论二
+
+      同上。
+
+      ⸻
+
+      （依次展开）
+
+      ⸻
+
+      # 其他重要内容（可选）
+
+      如果视频中还有重要信息无法归入上述结论，可单独补充。
+
+      ⸻
+
+      # 可执行建议（可选）
+
+      仅当视频明确提供行动方案、操作步骤、方法论时输出。
+
+      格式：
+
+      1. …
+      2. …
+      3. …
+
+      如果视频没有明确建议，则省略本节。
+
+      ⸻
+
+      # 一句话总结
+
+      使用不超过 50 字总结整个视频最重要的信息。
+
+      ⸻
+
+      输出要求
+
+      * 使用 Markdown
+      * 层级清晰
+      * 信息密度高
+      * 直接给结论
+      * 避免套话和废话
+      * 重点内容使用 加粗
+      * 输出语言与字幕语言保持一致
+      * 字幕信息不足时明确说明，不得编造`,
       el: "set-prompt",
     },
   };
@@ -235,9 +302,7 @@
     return loadProviderValue(
       baseKey,
       provider,
-      baseKey === "ai_model1"
-        ? CONFIG_DICT.model1.def
-        : CONFIG_DICT.model2.def,
+      baseKey === "ai_model1" ? CONFIG_DICT.model1.def : CONFIG_DICT.model2.def,
     );
   }
 
@@ -276,6 +341,7 @@
 
   // 状态数据
   let currentSubtitle = "";
+  let currentVideoTitle = ""; // 本次总结时抓取的视频标题
   let chatHistory = [];
   let sessionTokens = { input: 0, output: 0 }; // 本次会话累计 token 用量
   let isRequesting = false;
@@ -904,7 +970,11 @@
             const committedEl = mainSlot.querySelector(".ai-committed");
             const pendingEl = mainSlot.querySelector(".ai-pending");
             if (committedEl) {
-              for (let i = renderedSegCount; i < committedSegments.length; i++) {
+              for (
+                let i = renderedSegCount;
+                i < committedSegments.length;
+                i++
+              ) {
                 const segEl = document.createElement("div");
                 segEl.className = "ai-seg";
                 segEl.innerHTML = marked.parse(committedSegments[i]);
@@ -944,7 +1014,10 @@
                 renderPending(); // 流结束：强制渲染，定格最终态
               } else if (pendingMain === lastRenderedPending) {
                 // 内容未变（如仅思考计时刷新触发的本帧）：跳过 parse
-              } else if (Date.now() - lastPendingRenderTs >= PENDING_RENDER_MS) {
+              } else if (
+                Date.now() - lastPendingRenderTs >=
+                PENDING_RENDER_MS
+              ) {
                 renderPending();
               } else if (!tailTimer) {
                 // 距上次渲染过近：本帧跳过，挂尾帧兜底，保证这段增量最终会显示
@@ -1015,7 +1088,10 @@
           if (!mainContent && !reasoningContent) {
             isRequesting = false;
             currentRequest = null;
-            onError(receivedError || "AI 未返回内容，请检查模型名称、API Key 或接口配置");
+            onError(
+              receivedError ||
+                "AI 未返回内容，请检查模型名称、API Key 或接口配置",
+            );
             updateChatSendButtonState();
             return;
           }
@@ -1162,7 +1238,8 @@
     }
     // 需要至少有一条用户/系统消息作为生成上下文
     if (!chatHistory.some((m) => m.role === "user")) return;
-    bubble.innerHTML = '<span style="color:var(--text-faint);">AI 响应中...</span>';
+    bubble.innerHTML =
+      '<span style="color:var(--text-faint);">AI 响应中...</span>';
     updateChatSendButtonState();
     runChatStream(bubble);
   }
@@ -1191,6 +1268,27 @@
     );
   }
 
+  // 获取当前视频标题：依次尝试多个 DOM 选择器，均未命中时回退到 document.title。
+  function getVideoTitle() {
+    for (const sel of SELECTORS.videoTitle) {
+      const el = document.querySelector(sel);
+      if (el) {
+        // 优先用 title 属性（完整标题，不受省略号影响），其次用可见文本
+        const t = (el.getAttribute("title") || el.textContent || "").trim();
+        if (t) return t;
+      }
+    }
+    // 回退：去掉 B 站页面标题末尾的“_哔哩哔哩_bilibili”等后缀
+    const docTitle = (document.title || "").trim();
+    if (docTitle) {
+      return docTitle
+        .replace(/_哔哩哔哩.*$/, "")
+        .replace(/-哔哩哔哩.*$/, "")
+        .trim();
+    }
+    return "";
+  }
+
   function triggerSummary(plainText) {
     abortCurrentRequest(); // 中断上一次可能正在进行的请求（如重复点击「重新总结」）
     const chatContainer = document.getElementById("ai-panel-chat");
@@ -1201,7 +1299,21 @@
 
     const systemPrompt =
       "你是一个得力的视频内容总结与问答助手。请直接输出 Markdown 格式的排版内容。";
-    const userPrompt = `${aiConfig.prompt}\n\n字幕内容：\n${plainText}`;
+
+    // 抓取当前视频标题，并将 prompt 中的 {{video_title}} 占位符动态替换为真实标题
+    currentVideoTitle = getVideoTitle();
+    const titleForPrompt = currentVideoTitle || "（未获取到标题）";
+    const promptWithTitle = aiConfig.prompt.replace(
+      /\{\{\s*video_title\s*\}\}/g,
+      titleForPrompt,
+    );
+    // 如果用户的自定义 prompt 里没有用到 {{video_title}} 占位符，则在字幕前补上标题信息，避免丢失
+    const usedPlaceholder = /\{\{\s*video_title\s*\}\}/.test(aiConfig.prompt);
+    const titleBlock =
+      !usedPlaceholder && currentVideoTitle
+        ? `视频标题：${currentVideoTitle}\n\n`
+        : "";
+    const userPrompt = `${promptWithTitle}\n\n${titleBlock}字幕内容：\n${plainText}`;
 
     chatHistory.push({ role: "system", content: systemPrompt });
     chatHistory.push({ role: "user", content: userPrompt });
@@ -1413,6 +1525,7 @@
                 </div>
                 <div style="margin: 0 0 4px 0; color: var(--text-mute);">自定义总结 Prompt:</div>
                 <textarea id="set-prompt" class="ai-input" style="height: 110px; resize: vertical; margin-bottom: 0;" placeholder="要求 AI 如何进行总结...">${aiConfig.prompt}</textarea>
+                <div style="margin-top: 4px; color: var(--text-faint); font-size: 11px;">提示：可在 Prompt 中使用 <code>{{video_title}}</code> 占位符，总结时会自动替换为当前视频标题。</div>
                 <div style="margin-top: 6px; color: var(--text-faint); font-size: 11px; text-align: center;">再次点击 ⚙️ 即可保存并关闭设置</div>
             </div>
 
@@ -1478,7 +1591,11 @@
       }
       try {
         const parsed = JSON.parse(val);
-        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        if (
+          typeof parsed !== "object" ||
+          parsed === null ||
+          Array.isArray(parsed)
+        ) {
           throw new Error("需为 JSON 对象");
         }
         err.style.display = "none";
