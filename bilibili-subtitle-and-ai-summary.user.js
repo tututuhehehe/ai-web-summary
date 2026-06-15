@@ -842,8 +842,12 @@
                 if (data?.usage) usageInfo = data.usage; // 捕获 token 用量（可能在 delta 为空的末 chunk）
                 const delta = data?.choices?.[0]?.delta;
                 if (!delta) continue;
-                if (delta.reasoning_content) {
-                  reasoningContent += delta.reasoning_content;
+                // 思考增量字段兼容不同服务商：阿里云/DeepSeek 为 reasoning_content，
+                // Groq（gpt-oss 系）为 reasoning
+                const reasoningDelta =
+                  delta.reasoning_content ?? delta.reasoning;
+                if (reasoningDelta) {
+                  reasoningContent += reasoningDelta;
                   // 首次收到思考内容：启动每秒计时，让标题秒数一秒一秒跳
                   if (!thinkStartTime) {
                     thinkStartTime = Date.now();
@@ -871,17 +875,19 @@
 
           // 停止思考计时器并定格最终秒数
           function stopThinkTimer() {
+            // 仅在计时器仍在运行（真正从“思考中”切到“停止”）的那一刻定格秒数。
+            // 后续重复调用（如流结束时再调一次）不再重算，否则会把正文生成耗时也算进去。
             if (thinkTimer) {
               clearInterval(thinkTimer);
               thinkTimer = null;
+              if (thinkStartTime) {
+                thinkSeconds = Math.floor((Date.now() - thinkStartTime) / 1000);
+              }
             }
             if (tailTimer) {
               // 顺带清尾帧定时器，避免向已结束/作废的请求继续写入
               clearTimeout(tailTimer);
               tailTimer = null;
-            }
-            if (thinkStartTime) {
-              thinkSeconds = Math.floor((Date.now() - thinkStartTime) / 1000);
             }
           }
 
