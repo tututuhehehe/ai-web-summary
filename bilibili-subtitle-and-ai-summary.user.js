@@ -256,6 +256,33 @@
     return `${baseKey}_${provider}`;
   }
 
+  // 根据服务商组装思考模式参数,平铺写入 payload 顶层。
+  // 注意:这里是用 GM_xmlhttpRequest 手动拼 HTTP body 直接发送,
+  // 不存在 OpenAI SDK 的 extra_body 展平机制,因此这些非标准参数
+  // 必须直接放在请求体顶层(等价于 SDK 把 extra_body 展平后的结果)。
+  // 兼容不同服务商:阿里云/硅基流动用 enable_thinking + thinking_budget,
+  // DeepSeek 用 thinking.type + reasoning_effort;自定义服务商合并用户填写的 extra_body JSON。
+  function applyThinkingParams(payload, cfg) {
+    const enabled = cfg.thinking;
+    if (cfg.provider === "aliyun" || cfg.provider === "siliconflow") {
+      payload.enable_thinking = enabled;
+      if (enabled) payload.thinking_budget = 256;
+    } else if (cfg.provider === "deepseek") {
+      payload.thinking = { type: enabled ? "enabled" : "disabled" };
+      if (enabled) payload.reasoning_effort = "high";
+    } else if (cfg.extraBody && cfg.extraBody.trim()) {
+      // 自定义服务商:合并用户填写的 extra_body JSON 到顶层,解析失败时忽略
+      try {
+        const extra = JSON.parse(cfg.extraBody);
+        if (extra && typeof extra === "object" && !Array.isArray(extra)) {
+          Object.assign(payload, extra);
+        }
+      } catch (e) {
+        // JSON 解析失败时忽略(不中断请求),由用户自行检查格式
+      }
+    }
+  }
+
   // 各服务商的默认模型(首次未配置时使用)
   const PROVIDER_DEFAULTS = {
     aliyun: { model1: "qwen-plus", model2: "qwen-turbo" },
@@ -770,29 +797,8 @@
       stream_options: { include_usage: true }, // 请求接口在流末返回 token 用量
     };
 
-    // 根据服务商组装思考模式参数
-    if (aiConfig.provider === "aliyun") {
-      payload.enable_thinking = aiConfig.thinking;
-      if (aiConfig.thinking) payload.thinking_budget = 256;
-    } else if (aiConfig.provider === "deepseek") {
-      payload.thinking = { type: aiConfig.thinking ? "enabled" : "disabled" };
-      if (aiConfig.thinking) payload.reasoning_effort = "high";
-    } else if (aiConfig.provider === "siliconflow") {
-      payload.enable_thinking = aiConfig.thinking;
-      if (aiConfig.thinking) payload.thinking_budget = 256;
-    } else {
-      // 自定义服务商:不用思考开关,改为合并用户填写的 extra_body JSON
-      if (aiConfig.extraBody && aiConfig.extraBody.trim()) {
-        try {
-          const extra = JSON.parse(aiConfig.extraBody);
-          if (extra && typeof extra === "object" && !Array.isArray(extra)) {
-            Object.assign(payload, extra);
-          }
-        } catch (e) {
-          // JSON 解析失败时忽略(不中断请求),由用户自行检查格式
-        }
-      }
-    }
+    // 根据服务商组装思考模式参数(统一写入 extra_body)
+    applyThinkingParams(payload, aiConfig);
 
     currentRequest = GM_xmlhttpRequest({
       method: "POST",
