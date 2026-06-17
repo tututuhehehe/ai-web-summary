@@ -24,16 +24,13 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 
 ## 功能亮点
 
-- 自动捕获 B 站字幕接口，并在字幕菜单中增加 `[复制]` 按钮。
-- 右侧 `AI总结` 沉浸式侧边栏，可收起、可上下拖拽且位置持久化。
-- 基于字幕生成结构化 Markdown 总结，并支持围绕视频继续追问。
-- 生成中可随时「终止」，也可对最后一条回答「重新生成」。
-- 顶部显示本次请求与本次会话累计的输入/输出 token 用量（需接口返回 usage）。
-- 支持阿里云百炼、DeepSeek 官方、硅基流动、自定义 OpenAI 兼容接口，**各家各自独立保存 API Key / Endpoint / 模型**。
-- 支持 Reasoning/Thinking 模式，折叠展示思考过程并显示思考耗时。
-- 设置无需保存按钮：再次点击 ⚙️ 或点击面板内非设置区域即自动保存关闭。
-- 快捷键：`s` 唤起 / 收起 AI 总结面板，`Esc` 打断当前正在生成的回复（输入状态下不触发）。
-- UI 跟随系统明暗模式（`prefers-color-scheme`）。
+- 自动捕获字幕接口，字幕菜单增加 `[复制]` 按钮。
+- 右侧沉浸式 AI 侧边栏，可收起、可拖拽、位置持久化。
+- 基于字幕生成 Markdown 总结，支持连续追问。
+- 支持阿里云百炼、DeepSeek 官方、[硅基流动](https://cloud.siliconflow.cn/i/r2sHNZ7z)、自定义 OpenAI 兼容接口，各家独立保存配置。
+- 支持思考模式，折叠展示思考过程及耗时。
+- 快捷键：`s` 唤起/收起面板，`Esc` 打断生成。
+- UI 跟随系统明暗模式。
 
 ## 安装与使用
 
@@ -60,32 +57,11 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 
 ### 思考模式
 
-阿里云、DeepSeek、硅基流动提供「开启思考模式」勾选，开启后按服务商附加 payload：阿里云 `enable_thinking: true`，DeepSeek `thinking: { type: "enabled" }`，硅基流动 `enable_thinking: true`。
-
-**自定义服务商**没有这个勾选，改为提供一个 `extra_body`（JSON）输入框：你填写的 JSON 会被合并进请求参数，需要思考就自行填入对应字段，例如：
-
-```json
-{"enable_thinking": true}
-```
-
-或
-
-```json
-{"reasoning_effort": "high"}
-```
-
-是否显示「思考耗时」取决于接口是否返回 `reasoning_content`，与各家一致，无需额外配置。
+内置服务商提供「开启思考模式」勾选；自定义服务商通过 `extra_body` JSON 输入框自行附加参数（如 `{"enable_thinking": true}`）。
 
 ### 自定义 Prompt
 
 内置一套结构化总结 Prompt（视频主题 / 核心观点 / 分章节详解 / 关键案例与数据 / 可执行建议 / 一句话总结），输出语言与字幕一致。可按自己习惯修改。
-
-## 工作原理
-
-1. 拦截页面 `XMLHttpRequest` / `fetch`，记录字幕接口地址。
-2. 从页面脚本与运行时请求中提取 `subtitle` / `ai_subtitle` 字幕 JSON URL。
-3. 点击 `AI总结` 后用 `GM_xmlhttpRequest` 获取字幕并向 AI API 发起流式请求。
-4. 手动解析 SSE，将正文渲染为 Markdown，`reasoning_content` 放入可折叠的思考区域。
 
 ## 常见问题
 

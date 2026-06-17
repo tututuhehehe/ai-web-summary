@@ -20,7 +20,7 @@
 - 沉浸式右侧 AI 面板，不需要离开当前页面。
 - 支持 Markdown 渲染，包括标题、列表、加粗、代码块和表格。
 - 支持总结后继续追问，保留当前页面内容上下文。
-- 内置硅基流动、DeepSeek 官方、阿里云百炼 DashScope 接口配置。
+- 内置[硅基流动](https://cloud.siliconflow.cn/i/r2sHNZ7z)、DeepSeek 官方、阿里云百炼 DashScope 接口配置。
 - 支持自定义 OpenAI 兼容接口 Endpoint、API Key 和模型名。
 - 支持主模型、备用模型快速切换。
 - 支持自定义总结 Prompt。
@@ -58,7 +58,7 @@
 
 脚本面板中的配置项包括：
 
-- `服务商`：硅基流动、DeepSeek 官方、阿里云百炼或自定义接口。
+- `服务商`：[硅基流动](https://cloud.siliconflow.cn/i/r2sHNZ7z)、DeepSeek 官方、阿里云百炼或自定义接口。
 - `API Key`：对应服务商的密钥，仅保存在本地用户脚本存储中。
 - `Endpoint`：选择自定义服务商时填写 OpenAI 兼容的 Chat Completions 地址。
 - `主模型 / 备用模型`：例如 `deepseek-v4-flash`、`deepseek-v4-pro`、`qwen-plus`、`deepseek-reasoner` 等。
