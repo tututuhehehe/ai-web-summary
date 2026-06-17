@@ -31,6 +31,7 @@
     aliyun:
       "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     deepseek: "https://api.deepseek.com/chat/completions",
+    siliconflow: "https://api.siliconflow.cn/v1/chat/completions",
   };
 
   // 集中管理 B 站播放器 DOM 选择器,B 站改版时只需在此处维护
@@ -52,7 +53,7 @@
 
   // 配置数据字典
   const CONFIG_DICT = {
-    provider: { key: "ai_provider", def: "aliyun", el: "set-provider" },
+    provider: { key: "ai_provider", def: "siliconflow", el: "set-provider" },
     endpoint: {
       key: "ai_endpoint",
       def: ENDPOINTS.aliyun,
@@ -259,6 +260,7 @@
   const PROVIDER_DEFAULTS = {
     aliyun: { model1: "qwen-plus", model2: "qwen-turbo" },
     deepseek: { model1: "deepseek-chat", model2: "deepseek-reasoner" },
+    siliconflow: { model1: "Qwen/Qwen3.5-9B", model2: "inclusionAI/Ling-flash-2.0" },
     custom: { model1: "", model2: "" },
   };
 
@@ -266,6 +268,7 @@
   function loadEndpoint(provider) {
     if (provider === "aliyun") return ENDPOINTS.aliyun;
     if (provider === "deepseek") return ENDPOINTS.deepseek;
+    if (provider === "siliconflow") return ENDPOINTS.siliconflow;
     return GM_getValue(providerKey("ai_endpoint", provider), "");
   }
 
@@ -762,6 +765,7 @@
     const payload = {
       model: selectedModel,
       messages: messages,
+      temperature: 0.3,
       stream: true,
       stream_options: { include_usage: true }, // 请求接口在流末返回 token 用量
     };
@@ -771,6 +775,8 @@
       payload.enable_thinking = aiConfig.thinking;
     } else if (aiConfig.provider === "deepseek") {
       payload.thinking = { type: aiConfig.thinking ? "enabled" : "disabled" };
+    } else if (aiConfig.provider === "siliconflow") {
+      payload.enable_thinking = aiConfig.thinking;
     } else {
       // 自定义服务商:不用思考开关,改为合并用户填写的 extra_body JSON
       if (aiConfig.extraBody && aiConfig.extraBody.trim()) {
@@ -1529,8 +1535,9 @@
                 <div style="margin-bottom: 4px; color: var(--text-mute);">服务商与API配置:</div>
                 <div class="ai-settings-row">
                     <select id="set-provider" class="ai-input" style="width: 38%; padding: 4px;">
-                        <option value="aliyun" ${aiConfig.provider === "aliyun" ? "selected" : ""}>阿里云百炼</option>
+                        <option value="siliconflow" ${aiConfig.provider === "siliconflow" ? "selected" : ""}>硅基流动</option>
                         <option value="deepseek" ${aiConfig.provider === "deepseek" ? "selected" : ""}>DeepSeek官方</option>
+                        <option value="aliyun" ${aiConfig.provider === "aliyun" ? "selected" : ""}>阿里云百炼</option>
                         <option value="custom" ${aiConfig.provider === "custom" ? "selected" : ""}>自定义</option>
                     </select>
                     <input type="password" id="set-apikey" class="ai-input" style="width: 62%;" value="${aiConfig.apiKey}" placeholder="API Key (sk-...)">
@@ -1754,7 +1761,7 @@
         if (newVal === aiConfig[k]) continue;
         aiConfig[k] = newVal;
         if (config.perProvider) {
-          // endpoint 对 aliyun/deepseek 为固定值,无需存储;其余按服务商后缀存
+          // endpoint 对 aliyun/deepseek/siliconflow 为固定值,无需存储;其余按服务商后缀存
           if (!(k === "endpoint" && curProvider !== "custom")) {
             GM_setValue(providerKey(config.key, curProvider), newVal);
           }

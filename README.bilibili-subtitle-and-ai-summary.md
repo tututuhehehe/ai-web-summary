@@ -29,7 +29,7 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 - 基于字幕生成结构化 Markdown 总结，并支持围绕视频继续追问。
 - 生成中可随时「终止」，也可对最后一条回答「重新生成」。
 - 顶部显示本次请求与本次会话累计的输入/输出 token 用量（需接口返回 usage）。
-- 支持阿里云百炼、DeepSeek 官方、自定义 OpenAI 兼容接口，**三家各自独立保存 API Key / Endpoint / 模型**。
+- 支持阿里云百炼、DeepSeek 官方、硅基流动、自定义 OpenAI 兼容接口，**各家各自独立保存 API Key / Endpoint / 模型**。
 - 支持 Reasoning/Thinking 模式，折叠展示思考过程并显示思考耗时。
 - 设置无需保存按钮：再次点击 ⚙️ 或点击面板内非设置区域即自动保存关闭。
 - 快捷键：`s` 唤起 / 收起 AI 总结面板，`Esc` 打断当前正在生成的回复（输入状态下不触发）。
@@ -47,10 +47,11 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 
 ### 服务商
 
-内置三种，**API Key / Endpoint / 主备模型各自独立保存**，切换服务商会自动载入各自上次的配置：
+内置四种，**API Key / Endpoint / 主备模型各自独立保存**，切换服务商会自动载入各自上次的配置：
 
-- `阿里云百炼`：固定 Endpoint `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
+- `硅基流动`（推荐，新用户注册送 50 元代金券）：固定 Endpoint `https://api.siliconflow.cn/v1/chat/completions`
 - `DeepSeek官方`：固定 Endpoint `https://api.deepseek.com/chat/completions`
+- `阿里云百炼`：固定 Endpoint `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
 - `自定义`：手动填写完整的 OpenAI 兼容 Chat Completions 地址，例如 `https://api.openai.com/v1/chat/completions`（脚本不会自动补 `/v1/chat/completions`）
 
 ### 模型
@@ -59,7 +60,7 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 
 ### 思考模式
 
-阿里云、DeepSeek 提供「开启思考模式」勾选，开启后按服务商附加 payload：阿里云 `enable_thinking: true`，DeepSeek `thinking: { type: "enabled" }`。
+阿里云、DeepSeek、硅基流动提供「开启思考模式」勾选，开启后按服务商附加 payload：阿里云 `enable_thinking: true`，DeepSeek `thinking: { type: "enabled" }`，硅基流动 `enable_thinking: true`。
 
 **自定义服务商**没有这个勾选，改为提供一个 `extra_body`（JSON）输入框：你填写的 JSON 会被合并进请求参数，需要思考就自行填入对应字段，例如：
 
