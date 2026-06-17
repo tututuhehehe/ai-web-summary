@@ -49,7 +49,7 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 
 内置四种，**API Key / Endpoint / 主备模型各自独立保存**，切换服务商会自动载入各自上次的配置：
 
-- `硅基流动`（推荐，新用户注册送 50 元代金券）：固定 Endpoint `https://api.siliconflow.cn/v1/chat/completions`
+- `硅基流动`（推荐，[新用户注册送 50 元代金券](https://cloud.siliconflow.cn/i/r2sHNZ7z)）：固定 Endpoint `https://api.siliconflow.cn/v1/chat/completions`
 - `DeepSeek官方`：固定 Endpoint `https://api.deepseek.com/chat/completions`
 - `阿里云百炼`：固定 Endpoint `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
 - `自定义`：手动填写完整的 OpenAI 兼容 Chat Completions 地址，例如 `https://api.openai.com/v1/chat/completions`（脚本不会自动补 `/v1/chat/completions`）
