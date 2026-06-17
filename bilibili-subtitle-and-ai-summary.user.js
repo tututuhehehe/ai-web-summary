@@ -773,10 +773,13 @@
     // 根据服务商组装思考模式参数
     if (aiConfig.provider === "aliyun") {
       payload.enable_thinking = aiConfig.thinking;
+      if (aiConfig.thinking) payload.thinking_budget = 256;
     } else if (aiConfig.provider === "deepseek") {
       payload.thinking = { type: aiConfig.thinking ? "enabled" : "disabled" };
+      if (aiConfig.thinking) payload.reasoning_effort = "high";
     } else if (aiConfig.provider === "siliconflow") {
       payload.enable_thinking = aiConfig.thinking;
+      if (aiConfig.thinking) payload.thinking_budget = 256;
     } else {
       // 自定义服务商:不用思考开关,改为合并用户填写的 extra_body JSON
       if (aiConfig.extraBody && aiConfig.extraBody.trim()) {
