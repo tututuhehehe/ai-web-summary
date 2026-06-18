@@ -9,6 +9,7 @@
 // @match        *://*.bilibili.com/bangumi/play/*
 // @icon         https://www.bilibili.com/favicon.ico
 // @require      https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js
+// @require      https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js
 // @grant        unsafeWindow
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -327,18 +328,6 @@
     }
   }
 
-  // change 事件中填表用的便捷读取
-  function loadApiKey(provider) {
-    return GM_getValue(providerKey("ai_api_key", provider), "");
-  }
-  function loadModel(baseKey, provider) {
-    return loadProviderValue(
-      baseKey,
-      provider,
-      baseKey === "ai_model1" ? CONFIG_DICT.model1.def : CONFIG_DICT.model2.def,
-    );
-  }
-
   let aiConfig = {};
   for (let k in CONFIG_DICT) {
     if (CONFIG_DICT[k].perProvider) continue; // 按服务商的项随后加载
@@ -643,8 +632,12 @@
   let cachedScriptSubtitleUrls = null;
   function getSubtitleUrls() {
     const urls = [];
-    if (!cachedScriptSubtitleUrls) {
-      cachedScriptSubtitleUrls = [];
+    // 仅在"尚未从脚本中扫到任何字幕 URL"时才(重新)扫描脚本。
+    // 空数组是 truthy,旧写法 `if (!cachedScriptSubtitleUrls)` 会把"首次扫到空"
+    // 永久缓存,导致 SPA 下新视频的初始状态脚本稍后才注入/补全字幕 URL 时再也扫不到
+    // (即便字幕已在视频里出现,重新点击仍失败)。改为只缓存非空结果:空则下次继续重扫。
+    if (!cachedScriptSubtitleUrls || cachedScriptSubtitleUrls.length === 0) {
+      const found = [];
       document.querySelectorAll("script").forEach((scriptEl) => {
         const code = scriptEl.textContent;
         if (!code) return;
@@ -655,15 +648,16 @@
           const jsonUrls = code.match(
             /https?:\/\/[^\s"]*subtitle\/[^\s"]*\.json\?auth_key=[^\s"]*/g,
           );
-          if (jsonUrls) cachedScriptSubtitleUrls.push(...jsonUrls);
+          if (jsonUrls) found.push(...jsonUrls);
         }
         if (code.includes("ai_subtitle")) {
           const aiUrls = code.match(
             /https?:\/\/[^\s"]*ai_subtitle\/[^\s"]*\?auth_key=[^\s"]*/g,
           );
-          if (aiUrls) cachedScriptSubtitleUrls.push(...aiUrls);
+          if (aiUrls) found.push(...aiUrls);
         }
       });
+      cachedScriptSubtitleUrls = found; // 仅当非空时才真正起到缓存作用,空则下次重扫
     }
     urls.push(...cachedScriptSubtitleUrls);
 
@@ -766,13 +760,16 @@
       .replace(/'/g, "&#39;");
   }
 
-  function requestAIStream(
-    messages,
-    onChunk,
-    onComplete,
-    onError,
-    assistantBubble,
-  ) {
+  // Markdown 渲染统一出口:先用 marked 解析,再用 DOMPurify 清洗后再写入 innerHTML。
+  // 字幕是外部不可信输入,经 AI 总结后的输出可能被 prompt injection 注入
+  // <img onerror=...>/<svg onload=...> 等内联事件,marked@4 已移除内置 sanitize,
+  // 不清洗会在 *.bilibili.com 页面上下文中执行。DOMPurify 缺失(CDN 被拦)时降级为原样输出。
+  function renderMarkdown(src) {
+    const html = marked.parse(src || "");
+    return typeof DOMPurify !== "undefined" ? DOMPurify.sanitize(html) : html;
+  }
+
+  function requestAIStream(messages, onComplete, onError, assistantBubble) {
     if (!aiConfig.apiKey) {
       onError("请先点击右上角⚙️图标配置 API Key");
       return;
@@ -920,12 +917,6 @@
           function doRender(isFinal) {
             if (isStale()) return; // 请求已作废或 bubble 已移除,不再写入
 
-            // 无 bubble 场景(当前代码路径未使用,保留兼容):拼接完整 HTML 回传
-            if (!assistantBubble) {
-              renderViaOnChunk(isFinal);
-              return;
-            }
-
             // 推进 committed/pending 拆分:将最后一个段落边界之前的内容定稿。
             // 为避免把未闭合的代码块(```)从中间切断导致渲染错乱,
             // 只有当拟定稿部分的反引号成对(偶数)时才提交。
@@ -1001,7 +992,7 @@
               ) {
                 const segEl = document.createElement("div");
                 segEl.className = "ai-seg";
-                segEl.innerHTML = marked.parse(committedSegments[i]);
+                segEl.innerHTML = renderMarkdown(committedSegments[i]);
                 committedEl.appendChild(segEl);
               }
               renderedSegCount = committedSegments.length;
@@ -1021,9 +1012,9 @@
                 }
                 if (pendingMain) {
                   pendingEl.innerHTML = !isFinal
-                    ? marked.parse(pendingMain) +
+                    ? renderMarkdown(pendingMain) +
                       '<span style="color:var(--accent);opacity:0.6;">▍</span>'
-                    : marked.parse(pendingMain);
+                    : renderMarkdown(pendingMain);
                 } else if (!committedMain && reasoningContent) {
                   pendingEl.innerHTML =
                     '<span style="color:var(--text-faint);">AI 深度思考中...</span>';
@@ -1052,34 +1043,6 @@
                 }, PENDING_RENDER_MS);
               }
             }
-          }
-
-          // 兼容旧的无 bubble 调用方:拼接完整 HTML 交给 onChunk
-          function renderViaOnChunk(isFinal) {
-            let htmlParts = [];
-            if (reasoningContent) {
-              const thinking = !isFinal && !mainContent;
-              const summaryText = thinking
-                ? `💭 思考中... (${thinkSeconds}s)`
-                : `💭 思考过程 (耗时 ${thinkSeconds}s)`;
-              htmlParts.push(
-                `<details style="margin-bottom:8px;"><summary style="color:var(--text-mute);font-size:12px;">${summaryText}</summary>` +
-                  `<div style="color:var(--text-faint);font-size:12px;padding:8px;background:var(--bg-think);border-radius:6px;margin-top:4px;white-space:pre-wrap;">${escapeHtml(reasoningContent)}</div></details>`,
-              );
-            }
-            if (pendingMain && (isFinal || /\n\n/.test(pendingMain))) {
-              const splitAt = pendingMain.lastIndexOf("\n\n") + 2;
-              if (splitAt > 0) {
-                committedMain += pendingMain.slice(0, splitAt);
-                pendingMain = pendingMain.slice(splitAt);
-              } else if (isFinal) {
-                committedMain += pendingMain;
-                pendingMain = "";
-              }
-            }
-            const parseSrc = committedMain + pendingMain;
-            if (parseSrc) htmlParts.push(marked.parse(parseSrc));
-            onChunk(htmlParts.join(""));
           }
 
           while (true) {
@@ -1128,7 +1091,10 @@
           isRequesting = false;
           currentRequest = null;
           updateTokenBar(usageInfo);
-          onComplete(mainContent || reasoningContent);
+          // 仅把正文(content)交给上层写入历史;思考内容(reasoning_content)不作为
+          // 正式回答进入 chatHistory,避免模型在后续多轮里把自己的"思考"当成已说过的回答。
+          // 显示已由上面的 doRender(true) 完成(含思考折叠框),此处参数只影响历史。
+          onComplete(mainContent);
           updateChatSendButtonState();
         } catch (err) {
           stopThinkTimer();
@@ -1289,18 +1255,25 @@
     runChatStream(bubble);
   }
 
-  // 统一的流式对话调用封装:接管 onChunk/onComplete/onError 重复样板。
+  // 统一的流式对话调用封装:接管 onComplete/onError 重复样板。
   // onDone(plainText) 由调用方决定完成后的额外处理(如总结场景更新提示文案)。
   function runChatStream(assistantBubble, onDone) {
     activeAssistantBubble = assistantBubble; // 记录活动气泡,供终止时标注
     requestAIStream(
       chatHistory,
-      (htmlToDisplay) => {
-        assistantBubble.innerHTML = htmlToDisplay;
-      },
       (plainTextForHistory) => {
         activeAssistantBubble = null;
-        chatHistory.push({ role: "assistant", content: plainTextForHistory });
+        // 只有真正的正文才进历史;若模型仅产出思考内容(plainTextForHistory 为空),
+        // 不污染 chatHistory,改为在气泡内提示,并保留已渲染的思考折叠框 + 重新生成按钮。
+        if (plainTextForHistory && plainTextForHistory.trim()) {
+          chatHistory.push({
+            role: "assistant",
+            content: plainTextForHistory,
+          });
+        } else {
+          assistantBubble.innerHTML +=
+            '<div style="color:var(--text-faint);font-size:12px;margin-top:6px;">⚠️ 模型只返回了思考内容,未生成正式回答,可点击下方「重新生成」</div>';
+        }
         if (typeof onDone === "function") onDone(plainTextForHistory);
         attachRegenButton(assistantBubble);
       },
@@ -1399,7 +1372,7 @@
 
     inputEl.value = "";
     inputEl.style.height = "24px";
-    appendChatBubble("user", text);
+    appendChatBubble("user", escapeHtml(text));
 
     chatHistory.push({ role: "user", content: text });
     const assistantBubble = appendChatBubble(
@@ -1600,7 +1573,7 @@
       const thinkRow = document.getElementById("set-thinking-row");
       const ebRow = document.getElementById("set-extrabody-row");
 
-      // 1) 先暂存切换前服务商在表单里的当前输入(避免切走后丢失未保存的修改)
+      // 1) 先暂存切换前服务商在表单里的当前输入(防止某字段尚未 blur 即被切走)
       GM_setValue(providerKey("ai_api_key", prevProvider), apikeyInput.value);
       GM_setValue(providerKey("ai_model1", prevProvider), m1Input.value);
       GM_setValue(providerKey("ai_model2", prevProvider), m2Input.value);
@@ -1609,21 +1582,32 @@
         GM_setValue(providerKey("ai_extra_body", "custom"), ebInput.value);
       }
 
-      // 2) 加载目标服务商已存的配置填入表单
+      // 2) 立即提交服务商选择本身:更新内存 aiConfig 并持久化 ai_provider,
+      //    使「切换服务商后不关设置直接刷新」也能记住新服务商,
+      //    与下方各字段「失焦即保存」保持一致的即时持久化时序。
       const target = this.value;
-      apikeyInput.value = loadApiKey(target);
-      m1Input.value = loadModel("ai_model1", target);
-      m2Input.value = loadModel("ai_model2", target);
-      epInput.value = loadEndpoint(target);
-      ebInput.value = GM_getValue(providerKey("ai_extra_body", target), "");
+      aiConfig.provider = target;
+      GM_setValue(CONFIG_DICT.provider.key, target);
 
-      // 3) 自定义服务商:显示 endpoint + extra_body,隐藏思考勾选;其余相反
+      // 3) 按目标服务商把已存配置加载进内存 aiConfig,再回填表单(form 与 aiConfig 一致)
+      loadProviderConfig(target);
+      apikeyInput.value = aiConfig.apiKey;
+      m1Input.value = aiConfig.model1;
+      m2Input.value = aiConfig.model2;
+      epInput.value = aiConfig.endpoint;
+      ebInput.value = aiConfig.extraBody || "";
+
+      // 4) 自定义服务商:显示 endpoint + extra_body,隐藏思考勾选;其余相反
       const isCustom = target === "custom";
       epInput.style.display = isCustom ? "block" : "none";
       const epHint = document.getElementById("set-endpoint-hint");
       if (epHint) epHint.style.display = isCustom ? "block" : "none";
       ebRow.style.display = isCustom ? "block" : "none";
       thinkRow.style.display = isCustom ? "none" : "block";
+
+      refreshModelSelect(); // 模型集合随服务商变化,重建下拉并恢复最后选中项
+      updateChatSendButtonState(); // apiKey 可能变化,刷新发送按钮态
+      validateExtraBody(); // 重新校验切换后的 extra_body
 
       prevProvider = target;
     });
@@ -1662,6 +1646,45 @@
       .getElementById("set-extrabody")
       .addEventListener("input", validateExtraBody);
     validateExtraBody(); // 初始校验一次
+
+    // 单字段即时持久化:某设置输入失焦(复选框为 change)时,只在该字段较 aiConfig
+    // 有实际改动时写回 aiConfig 并按其存储策略持久化。这样「改动后直接刷新」也不丢,
+    // 与服务商切换的即时持久化时序保持一致,无需等到点齿轮关闭设置。
+    function saveField(k) {
+      const config = CONFIG_DICT[k];
+      if (!config) return false;
+      const el = document.getElementById(config.el);
+      if (!el) return false;
+      const newVal = config.isCheckbox ? el.checked : el.value;
+      if (newVal === aiConfig[k]) return false; // 无改动不写、不提示
+      aiConfig[k] = newVal;
+      const provEl = document.getElementById(CONFIG_DICT.provider.el);
+      const curProvider = provEl ? provEl.value : aiConfig.provider;
+      if (config.perProvider) {
+        // endpoint 对 aliyun/deepseek/siliconflow 为固定值,无需存储;其余按服务商后缀存
+        if (!(k === "endpoint" && curProvider !== "custom")) {
+          GM_setValue(providerKey(config.key, curProvider), newVal);
+        }
+      } else {
+        GM_setValue(config.key, newVal);
+      }
+      // 受影响的 UI 即时刷新
+      if (k === "model1" || k === "model2") refreshModelSelect();
+      if (k === "apiKey") updateChatSendButtonState();
+      showInfoBar("✅ 已保存", "success", 900);
+      return true;
+    }
+
+    // 文本类输入「失焦即保存」;复选框用 change(失焦语义不直观)。
+    // provider 已在其专属 change 处理器中即时持久化,不在此处重复绑定。
+    ["apiKey", "endpoint", "model1", "model2", "extraBody", "prompt"].forEach(
+      (key) => {
+        const el = document.getElementById(CONFIG_DICT[key].el);
+        if (el) el.addEventListener("blur", () => saveField(key));
+      },
+    );
+    const thinkEl = document.getElementById(CONFIG_DICT.thinking.el);
+    if (thinkEl) thinkEl.addEventListener("change", () => saveField("thinking"));
 
     // 防止面板内滚动穿透到底层视频页面:在整个面板上统一拦截滚轮。
     // 找到事件路径上最近的可滚动容器;若存在且未到边界则放行,
@@ -1878,31 +1901,39 @@
       return;
     }
 
-    showInfoBar("自动加载字幕资源中...", "info", 1000);
+    showInfoBar("自动加载字幕资源中...", "info", 1500);
 
+    // 1) 尝试唤起字幕菜单以触发字幕资源加载。刚切换视频时播放器控件可能尚未渲染,
+    //    先短轮询等待 subToggle 出现;期间若字幕已自行就绪则跳过点击。
     let langItem = document.querySelector(SELECTORS.subtitleLangItem);
-
     if (!langItem) {
-      const subToggle = document.querySelector(SELECTORS.subtitleToggle);
+      let subToggle = null;
+      for (let i = 0; i < 20; i++) {
+        // 最多等 ~3s 让播放器渲染
+        if (getSubtitleUrls().length > 0) break; // 字幕已就绪,无需再点菜单
+        subToggle = document.querySelector(SELECTORS.subtitleToggle);
+        if (subToggle) break;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
       if (subToggle) {
         subToggle.dispatchEvent(new MouseEvent("mouseenter"));
         await new Promise((resolve) => setTimeout(resolve, 300));
         langItem = document.querySelector(SELECTORS.subtitleLangItem);
       }
     }
+    if (langItem) langItem.click();
 
-    if (langItem) {
-      langItem.click();
-    } else {
-      showInfoBar("未检测到字幕资源,请确认本视频是否带有字幕", "error");
-      return;
-    }
-
+    // 2) 轮询等待字幕 URL 出现,覆盖两种来源:播放器自身发起的字幕请求(被网络拦截
+    //    捕获)、初始状态脚本内嵌的 URL(getSubtitleUrls 为空时会重扫脚本)。
+    //    给足时间应对刚导航完成时较慢的加载,避免过早判定失败。
     try {
-      await waitForSubtitleUrls();
+      await waitForSubtitleUrls(30, 150); // ~4.5s
       actionCallback();
     } catch (err) {
-      showInfoBar("自动获取字幕超时,请手动点击一下视频字幕设置。", "error");
+      showInfoBar(
+        "未检测到字幕资源,请手动点开一次视频的字幕设置后重试(本视频可能无字幕)",
+        "error",
+      );
     }
   }
 

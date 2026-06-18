@@ -12,7 +12,7 @@
 ## 3. 技术栈与限制
 - **语言**：原生 JavaScript (ES6+)。不使用 TypeScript。
 - **框架**：无。不使用 React、Vue 或 jQuery。仅使用纯原生 DOM API 进行操作。
-- **第三方库**：仅通过用户脚本元数据中的 `@require` 标签全局引入了 `marked.js` 用于 Markdown 解析。**绝对不要**尝试引入 npm 依赖或构建工具。
+- **第三方库**：仅通过用户脚本元数据中的 `@require` 标签全局引入。B 站脚本引入了 `marked.js`（Markdown 解析）与 `DOMPurify`（渲染前 XSS 清洗，AI 输出的 Markdown 经 `marked.parse` 后必须先 `DOMPurify.sanitize` 再写入 innerHTML）；微信公众号脚本目前仅引入 `marked.js`。**绝对不要**尝试引入 npm 依赖或构建工具。
 - **运行环境**：在用户脚本管理器（Tampermonkey/Violentmonkey）下运行的浏览器环境。
 
 ## 4. 严格的开发规范

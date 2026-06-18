@@ -19,7 +19,7 @@ https://github.com/user-attachments/assets/e8bb1bde-c194-42d7-b278-549e11e56229
 
 - 文件：`bilibili-subtitle-and-ai-summary.user.js`
 - 适用页面：`*://*.bilibili.com/video/*`、`*://*.bilibili.com/bangumi/play/*`
-- 依赖：通过 `@require` 引入 `marked.js`
+- 依赖：通过 `@require` 引入 `marked.js`（Markdown 解析）与 `DOMPurify`（渲染前 XSS 清洗）
 - 许可证：MIT
 
 ## 功能亮点

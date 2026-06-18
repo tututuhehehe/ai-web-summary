@@ -83,7 +83,7 @@
 - 原生 JavaScript ES6+，不使用 TypeScript。
 - 不引入 npm、打包器或构建流程。
 - 每个用户脚本保持单文件自包含。
-- 第三方库仅通过用户脚本元数据 `@require` 引入，目前使用 `marked.js` 渲染 Markdown。
+- 第三方库仅通过用户脚本元数据 `@require` 引入：使用 `marked.js` 渲染 Markdown；B 站脚本另引入 `DOMPurify`，在写入 innerHTML 前清洗 AI 输出，防止字幕/模型内容中的 XSS。
 - 新增外部请求能力时，必须在用户脚本元数据中声明相应 `@grant` / `@connect`。
 
 ## 许可证
