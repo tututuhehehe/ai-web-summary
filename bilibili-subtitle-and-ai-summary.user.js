@@ -2065,8 +2065,8 @@
                 '<div class="chat-bubble system">准备就绪。</div>';
               chatContainer.scrollTop = 0;
             }
-            updateTokenBar(null); // 切换视频,隐藏旧的 token 统计
-            resetSessionTokens(); // 新视频是新会话,累计清零
+            resetSessionTokens(); // 新视频是新会话,累计清零(须先清零)
+            updateTokenBar(null); // 再重新渲染,此时累计为 0 会正确隐藏
             updateChatSendButtonState();
 
             // 切换视频时若面板未收起,自动收起回侧栏
