@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站字幕获取与AI总结助手
 // @namespace    https://github.com/tututuhehehe/ai-web-summary
-// @version      1.2.0
+// @version      1.2.1
 // @author       limoon
 // @description  B站 bilibili 视频 番剧 字幕 总结 摘要 AI助手 DeepSeek
 // @description:en  Bilibili video subtitle summary AI assistant (DeepSeek/OpenAI)
@@ -15,6 +15,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        GM_info
 // @connect      *
 // @license      MIT
 // @downloadURL  https://update.greasyfork.org/scripts/575450/B%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8EAI%E5%8A%A9%E6%89%8B%20%28%E6%B2%89%E6%B5%B8%E5%BC%8F%E7%BF%BB%E8%AF%91%E6%80%BB%E7%BB%93%29.user.js
@@ -25,7 +26,7 @@
   "use strict";
 
   const startTime = performance.now();
-  const version = GM_info.script.version;
+  const version = typeof GM_info !== "undefined" && GM_info.script ? GM_info.script.version : "dev";
 
   // 集中管理外部端点常量,避免在多处硬编码
   const ENDPOINTS = {
@@ -264,11 +265,14 @@
   // 兼容不同服务商:阿里云/硅基流动用 enable_thinking + thinking_budget,
   // DeepSeek 用 thinking.type + reasoning_effort;自定义服务商合并用户填写的 extra_body JSON。
   function applyThinkingParams(payload, cfg) {
-    const enabled = cfg.thinking;
+    const enabled = !!cfg.thinking;
     if (cfg.provider === "aliyun" || cfg.provider === "siliconflow") {
+      // 必须显式发送 true/false:部分 Qwen/Qwen3 类模型默认会思考,
+      // 若关闭时不发送 false,UI 开关会表现为“关不掉”。
       payload.enable_thinking = enabled;
       if (enabled) payload.thinking_budget = 256;
     } else if (cfg.provider === "deepseek") {
+      // DeepSeek 兼容端点同样显式发送 enabled/disabled,确保开关双向生效。
       payload.thinking = { type: enabled ? "enabled" : "disabled" };
       if (enabled) payload.reasoning_effort = "high";
     } else if (cfg.extraBody && cfg.extraBody.trim()) {
@@ -493,6 +497,7 @@
 
             #bili-ai-panel {
                 position: fixed; right: 20px; top: 80px; width: 420px; height: 680px;
+                max-width: calc(100vw - 40px); max-height: calc(100vh - 100px);
                 background-color: var(--bg); border: 1px solid var(--border); border-radius: 12px;
                 box-shadow: var(--panel-shadow); z-index: 2147483646; display: none;
                 flex-direction: column; color: var(--text); font-family: sans-serif;
@@ -625,11 +630,65 @@
   }
   function setupNetworkInterception() {
     const script = document.createElement("script");
-    script.textContent = `(function(){window._biliSubtitleUrls=window._biliSubtitleUrls||[];const o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==='string'&&(u.includes('subtitle')||u.includes('ai_subtitle')))window._biliSubtitleUrls.push(u);return o.apply(this,arguments);};const f=window.fetch;window.fetch=function(u,op){let r=typeof u==='string'?u:(u&&u.url?u.url:'');if(r&&(r.includes('subtitle')||r.includes('ai_subtitle')))window._biliSubtitleUrls.push(r);return f.apply(this,arguments);};})();`;
+    script.textContent = `(function(){window._biliSubtitleUrls=window._biliSubtitleUrls||[];function add(u){if(!u||typeof u!=='string')return;if(!(u.includes('subtitle')||u.includes('ai_subtitle')))return;const a=window._biliSubtitleUrls;if(!a.includes(u))a.push(u);if(a.length>80)a.splice(0,a.length-80);}const o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){add(u);return o.apply(this,arguments);};const f=window.fetch;if(typeof f==='function'){window.fetch=function(u,op){let r=typeof u==='string'?u:(u&&u.url?u.url:'');add(r);return f.apply(this,arguments);};}})();`;
     (document.head || document.documentElement).appendChild(script);
     script.remove();
   }
   let cachedScriptSubtitleUrls = null;
+
+  function normalizeSubtitleUrl(raw) {
+    if (typeof raw !== "string") return "";
+    let url = raw
+      .trim()
+      .replace(/\\\//g, "/")
+      .replace(/\\u002F/gi, "/")
+      .replace(/\\u0026/gi, "&")
+      .replace(/&amp;/g, "&");
+    if (url.startsWith("//")) url = "https:" + url;
+    return url;
+  }
+
+  function collectSubtitleUrlsFromObject(obj, out, seen = new Set(), depth = 0) {
+    if (!obj || depth > 6) return;
+    const t = typeof obj;
+    if (t === "string") {
+      const url = normalizeSubtitleUrl(obj);
+      if (url && (url.includes("subtitle") || url.includes("ai_subtitle"))) {
+        out.push(url);
+      }
+      return;
+    }
+    if (t !== "object") return;
+    if (seen.has(obj)) return;
+    seen.add(obj);
+    if (Array.isArray(obj)) {
+      obj.forEach((item) => collectSubtitleUrlsFromObject(item, out, seen, depth + 1));
+      return;
+    }
+    for (const key in obj) {
+      // B 站初始状态对象较大,优先深挖字幕/播放信息相关字段;其他字段也浅层扫描。
+      const nextDepth = /sub|subtitle|caption|play|video|dash|data|url/i.test(key)
+        ? depth + 1
+        : depth + 2;
+      collectSubtitleUrlsFromObject(obj[key], out, seen, nextDepth);
+    }
+  }
+
+  function extractSubtitleUrlsFromScripts() {
+    const found = [];
+    document.querySelectorAll("script").forEach((scriptEl) => {
+      const code = scriptEl.textContent;
+      if (!code) return;
+      if (!code.includes("subtitle") && !code.includes("ai_subtitle")) return;
+      const normalizedCode = normalizeSubtitleUrl(code);
+      const matches = normalizedCode.match(
+        /(?:https?:)?\/\/[^\s"'<>\\]+(?:ai_subtitle|subtitle)\/[^\s"'<>\\]+/g,
+      );
+      if (matches) found.push(...matches.map(normalizeSubtitleUrl));
+    });
+    return found;
+  }
+
   function getSubtitleUrls() {
     const urls = [];
     // 仅在"尚未从脚本中扫到任何字幕 URL"时才(重新)扫描脚本。
@@ -637,42 +696,31 @@
     // 永久缓存,导致 SPA 下新视频的初始状态脚本稍后才注入/补全字幕 URL 时再也扫不到
     // (即便字幕已在视频里出现,重新点击仍失败)。改为只缓存非空结果:空则下次继续重扫。
     if (!cachedScriptSubtitleUrls || cachedScriptSubtitleUrls.length === 0) {
-      const found = [];
-      document.querySelectorAll("script").forEach((scriptEl) => {
-        const code = scriptEl.textContent;
-        if (!code) return;
-        // 先用 includes 短路:目标 URL 必含 auth_key,绝大多数脚本不含,
-        // 避免对每个大脚本都跑带回溯的全局正则
-        if (!code.includes("auth_key")) return;
-        if (code.includes("subtitle")) {
-          const jsonUrls = code.match(
-            /https?:\/\/[^\s"]*subtitle\/[^\s"]*\.json\?auth_key=[^\s"]*/g,
-          );
-          if (jsonUrls) found.push(...jsonUrls);
-        }
-        if (code.includes("ai_subtitle")) {
-          const aiUrls = code.match(
-            /https?:\/\/[^\s"]*ai_subtitle\/[^\s"]*\?auth_key=[^\s"]*/g,
-          );
-          if (aiUrls) found.push(...aiUrls);
-        }
-      });
-      cachedScriptSubtitleUrls = found; // 仅当非空时才真正起到缓存作用,空则下次重扫
+      cachedScriptSubtitleUrls = extractSubtitleUrlsFromScripts();
     }
     urls.push(...cachedScriptSubtitleUrls);
 
-    if (typeof unsafeWindow !== "undefined" && unsafeWindow._biliSubtitleUrls) {
-      urls.push(...unsafeWindow._biliSubtitleUrls);
-    } else if (window._biliSubtitleUrls) {
+    const win = typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
+    if (win._biliSubtitleUrls) urls.push(...win._biliSubtitleUrls);
+    if (window._biliSubtitleUrls && window._biliSubtitleUrls !== win._biliSubtitleUrls) {
       urls.push(...window._biliSubtitleUrls);
     }
-    return [...new Set(urls)].filter(
-      (url) =>
-        url &&
-        (url.includes("subtitle") || url.includes("ai_subtitle")) &&
-        url.includes("auth_key"),
-    );
+
+    // 兜底从 B 站首屏状态对象里递归找 subtitle_url/subtitleUrl 等字段。
+    try {
+      collectSubtitleUrlsFromObject(win.__INITIAL_STATE__, urls);
+      collectSubtitleUrlsFromObject(win.__playinfo__, urls);
+      collectSubtitleUrlsFromObject(win.__NEXT_DATA__, urls);
+    } catch (e) {}
+
+    const normalized = urls.map(normalizeSubtitleUrl).filter(Boolean);
+    return [...new Set(normalized)].filter((url) => {
+      if (!url || !(url.includes("subtitle") || url.includes("ai_subtitle"))) return false;
+      // B 站字幕通常带 auth_key;部分状态对象只暴露 subtitle_url 或 json URL,也允许作为兜底候选。
+      return url.includes("auth_key") || /subtitle.*\.json/i.test(url) || url.includes("ai_subtitle");
+    });
   }
+
   function getSubtitleBody(data) {
     const body =
       data && data.body
@@ -683,7 +731,32 @@
     if (Array.isArray(body)) return body;
     throw new Error("无法解析字幕数据(格式异常或为空)");
   }
-  function fetchSubtitleText() {
+  function formatSubtitleTime(seconds) {
+    if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "";
+    const total = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) {
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  function subtitleBodyToText(body, options = {}) {
+    const withTimestamps = !!options.withTimestamps;
+    return body
+      .map((item) => {
+        const content = String(item?.content ?? "").trim();
+        if (!content) return "";
+        if (!withTimestamps) return content;
+        const ts = formatSubtitleTime(item?.from);
+        return ts ? `[${ts}] ${content}` : content;
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  function fetchSubtitleText(options = {}) {
     return new Promise((res, rej) => {
       const urls = getSubtitleUrls();
       if (urls.length === 0) return rej(new Error("未找到字幕"));
@@ -691,13 +764,13 @@
       const zhUrl = urls.find((url) =>
         /[?&]lan=(zh|cn|hans)|[-_/](zh|hans|zh-hans|zh-cn)[-_./]/i.test(url),
       );
-      let url = zhUrl || urls[urls.length - 1];
-      if (url.startsWith("//")) url = "https:" + url;
+      const url = normalizeSubtitleUrl(zhUrl || urls[urls.length - 1]);
       // 使用 GM_xmlhttpRequest 下载字幕,避免 *.bilibili.com 对 *.hdslb.com 的跨域限制
       GM_xmlhttpRequest({
         method: "GET",
         url: url,
         responseType: "json",
+        timeout: 20000,
         onload: function (response) {
           if (response.status < 200 || response.status >= 300) {
             rej(new Error(`HTTP ${response.status}`));
@@ -709,11 +782,7 @@
             if (typeof data === "string") data = JSON.parse(data);
             else if (data == null && response.responseText)
               data = JSON.parse(response.responseText);
-            res(
-              getSubtitleBody(data)
-                .map((i) => i.content)
-                .join("\n"),
-            );
+            res(subtitleBodyToText(getSubtitleBody(data), options));
           } catch (e) {
             rej(new Error("字幕解析失败: " + e.message));
           }
@@ -727,6 +796,7 @@
       });
     });
   }
+
   function handleCopySubtitle() {
     showInfoBar("正在提取...", "info", 0);
     fetchSubtitleText()
@@ -752,7 +822,7 @@
   }
 
   function escapeHtml(s) {
-    return s
+    return String(s ?? "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -760,13 +830,22 @@
       .replace(/'/g, "&#39;");
   }
 
+  function escapeAttr(s) {
+    return escapeHtml(s);
+  }
+
   // Markdown 渲染统一出口:先用 marked 解析,再用 DOMPurify 清洗后再写入 innerHTML。
   // 字幕是外部不可信输入,经 AI 总结后的输出可能被 prompt injection 注入
   // <img onerror=...>/<svg onload=...> 等内联事件,marked@4 已移除内置 sanitize,
-  // 不清洗会在 *.bilibili.com 页面上下文中执行。DOMPurify 缺失(CDN 被拦)时降级为原样输出。
+  // 不清洗会在 *.bilibili.com 页面上下文中执行。DOMPurify 或 marked 缺失(CDN 被拦)时降级为纯文本输出。
   function renderMarkdown(src) {
-    const html = marked.parse(src || "");
-    return typeof DOMPurify !== "undefined" ? DOMPurify.sanitize(html) : html;
+    const text = String(src ?? "");
+    // marked 或 DOMPurify 任一 CDN 加载失败时,降级为纯文本而不是输出未清洗 HTML。
+    if (typeof marked === "undefined" || typeof DOMPurify === "undefined") {
+      return escapeHtml(text).replace(/\n/g, "<br>");
+    }
+    const html = marked.parse(text);
+    return DOMPurify.sanitize(html);
   }
 
   function requestAIStream(messages, onComplete, onError, assistantBubble) {
@@ -778,6 +857,8 @@
     const selectedModel = document.getElementById("ai-model-select").value;
     isRequesting = true;
     const mySeq = ++requestSeq; // 本次请求的序号,后续回调需校验是否仍为最新
+    const REQUEST_TIMEOUT_MS = 180000; // 整体请求超时
+    const STREAM_IDLE_TIMEOUT_MS = 45000; // 流式响应超过该时间无增量则视为卡住
     // 判断本次请求是否已被新请求/路由切换作废,或目标 bubble 已脱离文档
     function isStale() {
       if (mySeq !== requestSeq) return true;
@@ -788,7 +869,7 @@
 
     const payload = {
       model: selectedModel,
-      messages: messages,
+      messages: buildRequestMessages(messages),
       temperature: 0.3,
       stream: true,
       stream_options: { include_usage: true }, // 请求接口在流末返回 token 用量
@@ -807,8 +888,15 @@
       },
       data: JSON.stringify(payload),
       responseType: "stream",
+      timeout: REQUEST_TIMEOUT_MS,
       onloadstart: async function (response) {
         try {
+          if (response.status && (response.status < 200 || response.status >= 300)) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText || "请求失败"}`);
+          }
+          if (!response.response || typeof response.response.getReader !== "function") {
+            throw new Error("当前用户脚本管理器不支持 GM_xmlhttpRequest 的流式读取(responseType: stream),请升级 Tampermonkey/Violentmonkey 后重试");
+          }
           const reader = response.response.getReader();
           const decoder = new TextDecoder("utf-8");
           let buffer = "";
@@ -824,7 +912,24 @@
           let lastPendingRenderTs = 0; // 上次 pending 段实际渲染的时间戳,用于时间节流
           let tailTimer = null; // 节流跳过时的尾帧兜底定时器
           let receivedError = "";
-          let thinkStartTime = 0; // 思考(reasoning)首次出现的时间炳
+          let idleTimer = null;
+          function clearIdleTimer() {
+            if (idleTimer) {
+              clearTimeout(idleTimer);
+              idleTimer = null;
+            }
+          }
+          function touchIdleTimer() {
+            clearIdleTimer();
+            idleTimer = setTimeout(() => {
+              if (isStale()) return;
+              receivedError = `AI 响应超时:超过 ${Math.round(STREAM_IDLE_TIMEOUT_MS / 1000)} 秒未收到新内容`;
+              try {
+                currentRequest?.abort?.();
+              } catch (e) {}
+            }, STREAM_IDLE_TIMEOUT_MS);
+          }
+          let thinkStartTime = 0; // 思考(reasoning)首次出现的时间戳
           let thinkSeconds = 0; // 已思考秒数(一秒一秒跳动)
           let thinkTimer = null; // 思考计时器,每秒刷新标题
           let usageInfo = null; // 接口返回的 token 用量(prompt/completion)
@@ -1045,9 +1150,11 @@
             }
           }
 
+          touchIdleTimer();
           while (true) {
             if (isStale()) {
               stopThinkTimer();
+              clearIdleTimer();
               try {
                 await reader.cancel();
               } catch (e) {}
@@ -1055,6 +1162,7 @@
             }
             const { done, value } = await reader.read();
             if (done) break;
+            touchIdleTimer();
 
             buffer += decoder.decode(value, { stream: true });
             let lines = buffer.split("\n");
@@ -1064,6 +1172,7 @@
 
           // 流结束,停止思考计时
           stopThinkTimer();
+          clearIdleTimer();
 
           // 冲刷解码器与最后一行(末尾可能没有换行符,否则丢失最后一个 token)
           buffer += decoder.decode();
@@ -1097,11 +1206,16 @@
           onComplete(mainContent);
           updateChatSendButtonState();
         } catch (err) {
-          stopThinkTimer();
+          try {
+            stopThinkTimer();
+          } catch (e) {}
+          try {
+            clearIdleTimer();
+          } catch (e) {}
           if (isStale()) return; // 主动中断导致的异常,静默忽略
           isRequesting = false;
           currentRequest = null;
-          onError("流读取中断");
+          onError(receivedError || err?.message || "流读取中断");
           updateChatSendButtonState();
         }
       },
@@ -1109,7 +1223,14 @@
         if (isStale()) return;
         isRequesting = false;
         currentRequest = null;
-        onError("网络请求失败,请检查配置或网络");
+        onError(err?.error || err?.message || "网络请求失败,请检查配置或网络");
+        updateChatSendButtonState();
+      },
+      ontimeout: function () {
+        if (isStale()) return;
+        isRequesting = false;
+        currentRequest = null;
+        onError(`请求超时:超过 ${Math.round(REQUEST_TIMEOUT_MS / 1000)} 秒未完成`);
         updateChatSendButtonState();
       },
     });
@@ -1125,14 +1246,24 @@
   function refreshModelSelect() {
     const select = document.getElementById("ai-model-select");
     if (!select) return;
-    let html = `<option value="${aiConfig.model1}">${aiConfig.model1} (主)</option>`;
-    if (aiConfig.model2) {
-      html += `<option value="${aiConfig.model2}">${aiConfig.model2} (备)</option>`;
+    select.innerHTML = "";
+
+    function addOption(value, labelSuffix) {
+      if (!value) return;
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = `${value} ${labelSuffix}`;
+      select.appendChild(option);
     }
-    select.innerHTML = html;
+
+    addOption(aiConfig.model1, "(主)");
+    addOption(aiConfig.model2, "(备)");
+
     const saved = GM_getValue(lastModelKey(aiConfig.provider), "");
     if (saved && (saved === aiConfig.model1 || saved === aiConfig.model2)) {
       select.value = saved;
+    } else if (aiConfig.model1) {
+      select.value = aiConfig.model1;
     }
   }
 
@@ -1279,7 +1410,7 @@
       },
       (errMsg) => {
         activeAssistantBubble = null;
-        assistantBubble.innerHTML = `<span style="color:#f5222d;">❌ ${errMsg}</span>`;
+        assistantBubble.innerHTML = `<span style="color:#f5222d;">❌ ${escapeHtml(errMsg)}</span>`;
         attachRegenButton(assistantBubble);
       },
       assistantBubble,
@@ -1307,6 +1438,71 @@
     return "";
   }
 
+  const MAX_TRANSCRIPT_PROMPT_CHARS = 60000;
+  const MAX_CHAT_CONTEXT_MESSAGES = 12;
+
+  function prepareTranscriptForPrompt(plainText) {
+    const text = String(plainText || "");
+    if (text.length <= MAX_TRANSCRIPT_PROMPT_CHARS) {
+      return { text, note: "" };
+    }
+    const headLen = Math.floor(MAX_TRANSCRIPT_PROMPT_CHARS * 0.72);
+    const tailLen = MAX_TRANSCRIPT_PROMPT_CHARS - headLen;
+    const omitted = text.length - headLen - tailLen;
+    return {
+      text:
+        text.slice(0, headLen) +
+        `
+
+[系统提示:字幕过长,中间约 ${omitted} 个字符已省略。请基于可见片段总结,并明确说明可能遗漏中段细节。]
+
+` +
+        text.slice(-tailLen),
+      note: `⚠️ 字幕较长(${text.length} 字符),为避免超出模型上下文,已保留开头和结尾并省略中间约 ${omitted} 字符。`,
+    };
+  }
+
+  function buildRequestMessages(messages) {
+    if (!Array.isArray(messages) || messages.length <= MAX_CHAT_CONTEXT_MESSAGES) {
+      return messages;
+    }
+    const preserved = [];
+    const used = new Set();
+    if (messages[0]?.role === "system") {
+      preserved.push(messages[0]);
+      used.add(0);
+    }
+    const firstUserIndex = messages.findIndex((m, idx) => !used.has(idx) && m.role === "user");
+    if (firstUserIndex >= 0) {
+      preserved.push(messages[firstUserIndex]);
+      used.add(firstUserIndex);
+      const firstAssistantIndex = messages.findIndex(
+        (m, idx) => idx > firstUserIndex && m.role === "assistant",
+      );
+      if (firstAssistantIndex >= 0) {
+        preserved.push(messages[firstAssistantIndex]);
+        used.add(firstAssistantIndex);
+      }
+    }
+
+    const tailBudget = Math.max(4, MAX_CHAT_CONTEXT_MESSAGES - preserved.length - 1);
+    const tail = messages
+      .map((m, idx) => ({ m, idx }))
+      .filter(({ idx }) => !used.has(idx))
+      .slice(-tailBudget)
+      .map(({ m }) => m);
+
+    return [
+      ...preserved,
+      {
+        role: "system",
+        content:
+          "为控制上下文长度,较早的部分对话已省略。请优先依据保留的视频字幕/摘要和最近对话回答。",
+      },
+      ...tail,
+    ];
+  }
+
   function triggerSummary(plainText) {
     abortCurrentRequest(); // 中断上一次可能正在进行的请求(如重复点击「重新总结」)
     const chatContainer = document.getElementById("ai-panel-chat");
@@ -1331,10 +1527,14 @@
       !usedPlaceholder && currentVideoTitle
         ? `视频标题:${currentVideoTitle}\n\n`
         : "";
-    const userPrompt = `${promptWithTitle}\n\n${titleBlock}字幕内容:\n${plainText}`;
+    const preparedTranscript = prepareTranscriptForPrompt(plainText);
+    const userPrompt = `${promptWithTitle}\n\n${titleBlock}字幕内容:\n${preparedTranscript.text}`;
 
     chatHistory.push({ role: "system", content: systemPrompt });
     chatHistory.push({ role: "user", content: userPrompt });
+    if (preparedTranscript.note) {
+      appendChatBubble("system", escapeHtml(preparedTranscript.note));
+    }
 
     const assistantBubble = appendChatBubble(
       "assistant",
@@ -1407,13 +1607,13 @@
     chatContainer.innerHTML =
       '<div class="chat-bubble system">获取字幕中...</div>';
 
-    fetchSubtitleText()
+    fetchSubtitleText({ withTimestamps: true })
       .then((plainText) => {
         currentSubtitle = plainText;
         triggerSummary(plainText);
       })
       .catch((err) => {
-        chatContainer.innerHTML = `<div class="chat-bubble system" style="color:#f5222d;">❌ 提取字幕失败: ${err.message}</div>`;
+        chatContainer.innerHTML = `<div class="chat-bubble system" style="color:#f5222d;">❌ 提取字幕失败: ${escapeHtml(err.message)}</div>`;
       });
   }
 
@@ -1496,8 +1696,8 @@
                 <div class="ai-panel-header-left">
                     <span class="ai-panel-title">✨ AI</span>
                     <select id="ai-model-select" class="ai-model-select" title="切换模型">
-                        <option value="${aiConfig.model1}">${aiConfig.model1} (主)</option>
-                        ${aiConfig.model2 ? `<option value="${aiConfig.model2}">${aiConfig.model2} (备)</option>` : ""}
+                        <option value="${escapeAttr(aiConfig.model1)}">${escapeHtml(aiConfig.model1)} (主)</option>
+                        ${aiConfig.model2 ? `<option value="${escapeAttr(aiConfig.model2)}">${escapeHtml(aiConfig.model2)} (备)</option>` : ""}
                     </select>
                     <span class="ai-refresh-btn" id="ai-refresh-btn" title="重新总结">🔄</span>
                 </div>
@@ -1522,14 +1722,14 @@
                         <option value="aliyun" ${aiConfig.provider === "aliyun" ? "selected" : ""}>阿里云百炼</option>
                         <option value="custom" ${aiConfig.provider === "custom" ? "selected" : ""}>自定义</option>
                     </select>
-                    <input type="password" id="set-apikey" class="ai-input" style="width: 62%;" value="${aiConfig.apiKey}" placeholder="API Key (sk-...)">
+                    <input type="password" id="set-apikey" class="ai-input" style="width: 62%;" value="${escapeAttr(aiConfig.apiKey)}" placeholder="API Key (sk-...)">
                 </div>
-                <input type="text" id="set-endpoint" class="ai-input" value="${aiConfig.endpoint}" placeholder="https://api.openai.com/v1/chat/completions" style="display: ${aiConfig.provider === "custom" ? "block" : "none"};">
+                <input type="text" id="set-endpoint" class="ai-input" value="${escapeAttr(aiConfig.endpoint)}" placeholder="https://api.openai.com/v1/chat/completions" style="display: ${aiConfig.provider === "custom" ? "block" : "none"};">
                 <div id="set-endpoint-hint" style="display: ${aiConfig.provider === "custom" ? "block" : "none"}; color: var(--text-faint); font-size: 11px; margin: 2px 0 4px 0;">请填写完整的 Chat Completions 地址,例如:https://api.openai.com/v1/chat/completions</div>
 
                 <div class="ai-settings-row">
-                    <input type="text" id="set-model1" class="ai-input" value="${aiConfig.model1}" placeholder="主模型">
-                    <input type="text" id="set-model2" class="ai-input" value="${aiConfig.model2}" placeholder="备用模型">
+                    <input type="text" id="set-model1" class="ai-input" value="${escapeAttr(aiConfig.model1)}" placeholder="主模型">
+                    <input type="text" id="set-model2" class="ai-input" value="${escapeAttr(aiConfig.model2)}" placeholder="备用模型">
                 </div>
                 <div id="set-thinking-row" style="margin: 4px 0 8px 0; display: ${aiConfig.provider === "custom" ? "none" : "block"};">
                     <label style="color:var(--text); font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px;">
@@ -1560,6 +1760,25 @@
     // 用 JS 直接回填 textarea 值，绕开 HTML 解析对“标签内容”的处理（前导换行被剔除、
     // 实体被解码等），保证 textarea 显示值与存储值逐字节一致，避免保存时误判为“未变更”。
     document.getElementById("set-prompt").value = aiConfig.prompt || "";
+    // 为 span 图标按钮补充基础可访问性:可聚焦、可用 Enter/Space 触发。
+    [
+      [minTab, "打开 AI 总结"],
+      [document.getElementById("ai-refresh-btn"), "重新总结"],
+      [document.getElementById("ai-setting-toggle"), "设置"],
+      [document.getElementById("ai-minimize-btn"), "收起到侧边"],
+    ].forEach(([el, label]) => {
+      if (!el) return;
+      el.setAttribute("role", "button");
+      el.setAttribute("tabindex", "0");
+      el.setAttribute("aria-label", label);
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          el.click();
+        }
+      });
+    });
+
 
     // 设置栏:服务商切换事件绑定
     const provSelect = document.getElementById("set-provider");
