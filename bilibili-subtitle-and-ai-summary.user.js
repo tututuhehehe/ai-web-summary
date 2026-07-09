@@ -756,16 +756,33 @@
       .filter(Boolean)
       .join("\n");
   }
-  function fetchSubtitleText(options = {}) {
-    return new Promise((res, rej) => {
-      const urls = getSubtitleUrls();
-      if (urls.length === 0) return rej(new Error("未找到字幕"));
-      // 仅在语言标识字段(lan= 或路径分段)中匹配中文,避免误命中 auth_key/域名中的 cn 等子串
-      const zhUrl = urls.find((url) =>
-        /[?&]lan=(zh|cn|hans)|[-_/](zh|hans|zh-hans|zh-cn)[-_./]/i.test(url),
-      );
-      const url = normalizeSubtitleUrl(zhUrl || urls[urls.length - 1]);
-      // 使用 GM_xmlhttpRequest 下载字幕,避免 *.bilibili.com 对 *.hdslb.com 的跨域限制
+  // 对候选字幕 URL 打分排序:分越高越可能是真正的字幕正文 JSON。
+  // getSubtitleUrls() 会把页面里所有含 "subtitle"/"ai_subtitle" 的 URL 都收进来,
+  // 其中混杂着并非字幕正文的地址(如字幕相关的上报/状态接口,响应体可能是纯文本 "ok",
+  // 或字幕列表接口,响应里没有 body 字段)。这些 URL 命中后会导致 JSON.parse 失败
+  // (报 Unexpected identifier "ok" 之类)。因此这里优先尝试最像"正文"的地址。
+  function rankSubtitleUrl(url) {
+    let score = 0;
+    // 中文语言标识(lan= 或路径分段),优先取中文字幕
+    if (
+      /[?&]lan=(zh|cn|hans)|[-_/](zh|hans|zh-hans|zh-cn)[-_./]/i.test(url)
+    ) {
+      score += 100;
+    }
+    if (url.includes("ai_subtitle")) score += 10; // B 站 AI 字幕正文
+    if (/subtitle.*\.json/i.test(url)) score += 5; // 明确的 .json 字幕文件
+    if (url.includes("auth_key")) score += 2; // 带鉴权串的通常是 CDN 正文地址
+    // 明显不是字幕正文的路径(上报/心跳/接口列表等)降权,排到最后再兜底尝试
+    if (/(report|heartbeat|log|stat|track|list|manager|config)/i.test(url)) {
+      score -= 50;
+    }
+    return score;
+  }
+
+  // 使用 GM_xmlhttpRequest 下载单个字幕 URL 并解析为纯文本(避免 *.bilibili.com 对
+  // *.hdslb.com 的跨域限制)。解析失败/内容为空/HTTP 异常时 reject,由上层继续尝试下一个候选。
+  function fetchSubtitleFromUrl(url, options) {
+    return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: "GET",
         url: url,
@@ -773,7 +790,7 @@
         timeout: 20000,
         onload: function (response) {
           if (response.status < 200 || response.status >= 300) {
-            rej(new Error(`HTTP ${response.status}`));
+            reject(new Error(`HTTP ${response.status}`));
             return;
           }
           try {
@@ -782,19 +799,48 @@
             if (typeof data === "string") data = JSON.parse(data);
             else if (data == null && response.responseText)
               data = JSON.parse(response.responseText);
-            res(subtitleBodyToText(getSubtitleBody(data), options));
+            const text = subtitleBodyToText(getSubtitleBody(data), options);
+            if (!text || !text.trim()) {
+              reject(new Error("字幕内容为空"));
+              return;
+            }
+            resolve(text);
           } catch (e) {
-            rej(new Error("字幕解析失败: " + e.message));
+            reject(new Error("字幕解析失败: " + e.message));
           }
         },
         onerror: function () {
-          rej(new Error("字幕下载失败(网络错误)"));
+          reject(new Error("字幕下载失败(网络错误)"));
         },
         ontimeout: function () {
-          rej(new Error("字幕下载超时"));
+          reject(new Error("字幕下载超时"));
         },
       });
     });
+  }
+
+  // 依次尝试所有候选字幕 URL(按 rankSubtitleUrl 从高到低,相同分保持原顺序),
+  // 命中第一个能解析出非空字幕正文的地址即返回;全部失败才抛出最后一次错误。
+  // 这样即使候选里混入了返回 "ok"/非 JSON 的非正文接口,也能自动跳过,不再随机报错。
+  async function fetchSubtitleText(options = {}) {
+    const rawUrls = getSubtitleUrls();
+    if (rawUrls.length === 0) throw new Error("未找到字幕");
+
+    const ordered = rawUrls
+      .map((u, i) => ({ url: normalizeSubtitleUrl(u), i }))
+      .filter((x) => x.url)
+      .sort((a, b) => rankSubtitleUrl(b.url) - rankSubtitleUrl(a.url) || a.i - b.i)
+      .map((x) => x.url);
+
+    let lastErr = null;
+    for (const url of ordered) {
+      try {
+        return await fetchSubtitleFromUrl(url, options);
+      } catch (e) {
+        lastErr = e; // 记录并尝试下一个候选(如返回 "ok"、列表接口无 body 等)
+      }
+    }
+    throw lastErr || new Error("字幕获取失败");
   }
 
   function handleCopySubtitle() {
