@@ -1768,7 +1768,10 @@
                         <option value="aliyun" ${aiConfig.provider === "aliyun" ? "selected" : ""}>阿里云百炼</option>
                         <option value="custom" ${aiConfig.provider === "custom" ? "selected" : ""}>自定义</option>
                     </select>
-                    <input type="password" id="set-apikey" class="ai-input" style="width: 62%;" value="${escapeAttr(aiConfig.apiKey)}" placeholder="API Key (sk-...)">
+                    <div style="flex: 1; display: flex; gap: 6px; align-items: flex-start; min-width: 0;">
+                        <input type="password" id="set-apikey" class="ai-input" style="flex: 1; width: auto; min-width: 0;" value="" autocomplete="new-password" placeholder="${aiConfig.apiKey ? "API Key 已配置，输入新 Key 可替换" : "API Key (sk-...)"}">
+                        <button type="button" id="set-apikey-clear" class="ai-input" style="width: auto; white-space: nowrap; cursor: pointer;" title="清除当前服务商保存的 API Key">清除</button>
+                    </div>
                 </div>
                 <input type="text" id="set-endpoint" class="ai-input" value="${escapeAttr(aiConfig.endpoint)}" placeholder="https://api.openai.com/v1/chat/completions" style="display: ${aiConfig.provider === "custom" ? "block" : "none"};">
                 <div id="set-endpoint-hint" style="display: ${aiConfig.provider === "custom" ? "block" : "none"}; color: var(--text-faint); font-size: 11px; margin: 2px 0 4px 0;">请填写完整的 Chat Completions 地址,例如:https://api.openai.com/v1/chat/completions</div>
@@ -1806,6 +1809,31 @@
     // 用 JS 直接回填 textarea 值，绕开 HTML 解析对“标签内容”的处理（前导换行被剔除、
     // 实体被解码等），保证 textarea 显示值与存储值逐字节一致，避免保存时误判为“未变更”。
     document.getElementById("set-prompt").value = aiConfig.prompt || "";
+
+    // API Key 只保存在 GM 存储与脚本闭包中，不把已保存的真实值回填到页面 DOM。
+    // 输入框为空表示“保持原值”；只有输入新的非空 Key 才覆盖，删除则使用显式清除按钮。
+    const apiKeyInput = document.getElementById("set-apikey");
+    const apiKeyClearBtn = document.getElementById("set-apikey-clear");
+    function resetApiKeyInput() {
+      apiKeyInput.value = "";
+      apiKeyInput.dataset.dirty = "false";
+      apiKeyInput.placeholder = aiConfig.apiKey
+        ? "API Key 已配置，输入新 Key 可替换"
+        : "API Key (sk-...)";
+    }
+    apiKeyInput.addEventListener("input", () => {
+      apiKeyInput.dataset.dirty = "true";
+    });
+    apiKeyClearBtn.addEventListener("click", () => {
+      const provider = document.getElementById("set-provider").value;
+      aiConfig.apiKey = "";
+      GM_setValue(providerKey(CONFIG_DICT.apiKey.key, provider), "");
+      resetApiKeyInput();
+      updateChatSendButtonState();
+      showInfoBar("✅ API Key 已清除", "success", 1200);
+    });
+    resetApiKeyInput();
+
     // 为 span 图标按钮补充基础可访问性:可聚焦、可用 Enter/Space 触发。
     [
       [minTab, "打开 AI 总结"],
@@ -1839,7 +1867,17 @@
       const ebRow = document.getElementById("set-extrabody-row");
 
       // 1) 先暂存切换前服务商在表单里的当前输入(防止某字段尚未 blur 即被切走)
-      GM_setValue(providerKey("ai_api_key", prevProvider), apikeyInput.value);
+      // API Key 输入框不回填旧值：仅在用户确实输入了新的非空 Key 时覆盖。
+      // 空输入表示保持原 Key，删除必须使用“清除”按钮。
+      if (
+        apikeyInput.dataset.dirty === "true" &&
+        apikeyInput.value.trim()
+      ) {
+        GM_setValue(
+          providerKey("ai_api_key", prevProvider),
+          apikeyInput.value.trim(),
+        );
+      }
       GM_setValue(providerKey("ai_model1", prevProvider), m1Input.value);
       GM_setValue(providerKey("ai_model2", prevProvider), m2Input.value);
       if (prevProvider === "custom") {
@@ -1856,7 +1894,7 @@
 
       // 3) 按目标服务商把已存配置加载进内存 aiConfig,再回填表单(form 与 aiConfig 一致)
       loadProviderConfig(target);
-      apikeyInput.value = aiConfig.apiKey;
+      resetApiKeyInput();
       m1Input.value = aiConfig.model1;
       m2Input.value = aiConfig.model2;
       epInput.value = aiConfig.endpoint;
@@ -1920,11 +1958,30 @@
       if (!config) return false;
       const el = document.getElementById(config.el);
       if (!el) return false;
+
+      const provEl = document.getElementById(CONFIG_DICT.provider.el);
+      const curProvider = provEl ? provEl.value : aiConfig.provider;
+
+      // 已保存的 API Key 不存在于 DOM 中。只有用户输入新的非空 Key 时才覆盖；
+      // 空输入保持原值，删除操作由独立的“清除”按钮负责。
+      if (k === "apiKey") {
+        const dirty = el.dataset.dirty === "true";
+        const newKey = el.value.trim();
+        if (!dirty || !newKey || newKey === aiConfig.apiKey) {
+          resetApiKeyInput();
+          return false;
+        }
+        aiConfig.apiKey = newKey;
+        GM_setValue(providerKey(config.key, curProvider), newKey);
+        resetApiKeyInput();
+        updateChatSendButtonState();
+        showInfoBar("✅ API Key 已保存", "success", 900);
+        return true;
+      }
+
       const newVal = config.isCheckbox ? el.checked : el.value;
       if (newVal === aiConfig[k]) return false; // 无改动不写、不提示
       aiConfig[k] = newVal;
-      const provEl = document.getElementById(CONFIG_DICT.provider.el);
-      const curProvider = provEl ? provEl.value : aiConfig.provider;
       if (config.perProvider) {
         // endpoint 对 aliyun/deepseek/siliconflow 为固定值,无需存储;其余按服务商后缀存
         if (!(k === "endpoint" && curProvider !== "custom")) {
@@ -1935,7 +1992,6 @@
       }
       // 受影响的 UI 即时刷新
       if (k === "model1" || k === "model2") refreshModelSelect();
-      if (k === "apiKey") updateChatSendButtonState();
       showInfoBar("✅ 已保存", "success", 900);
       return true;
     }
@@ -2054,6 +2110,22 @@
       for (let k in CONFIG_DICT) {
         const config = CONFIG_DICT[k];
         const el = document.getElementById(config.el);
+        if (!el) continue;
+
+        // API Key 不参与普通表单回填和空值保存。只有用户输入新的非空值才覆盖；
+        // 否则继续保留 GM 存储中的现有 Key。
+        if (k === "apiKey") {
+          const dirty = el.dataset.dirty === "true";
+          const newKey = el.value.trim();
+          if (dirty && newKey && newKey !== aiConfig.apiKey) {
+            aiConfig.apiKey = newKey;
+            GM_setValue(providerKey(config.key, curProvider), newKey);
+            changed = true;
+          }
+          resetApiKeyInput();
+          continue;
+        }
+
         const newVal = config.isCheckbox ? el.checked : el.value;
         if (newVal === aiConfig[k]) continue;
         aiConfig[k] = newVal;
