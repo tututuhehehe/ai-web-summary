@@ -1131,6 +1131,15 @@
                 reasoningContent;
             }
 
+            // 流结束时用完整正文做一次整体 Markdown 渲染。
+            // 流式阶段为保证已输出段落可稳定选中/复制，会按空行拆成独立 DOM 节点；
+            // 但分别调用 marked.parse 会破坏跨段 Markdown 结构（例如带空行的有序列表
+            // 会重新从 1 编号）。最终整体渲染可恢复列表、引用、嵌套块等完整语义。
+            if (isFinal && mainContent) {
+              mainSlot.innerHTML = renderMarkdown(mainContent);
+              return;
+            }
+
             // 正文:committed 每段作为独立 DOM 节点,只 append 新增段落,旧节点永不重建
             // (复制任何已完成段落都不受后续输出影响);pending 每帧重写。两者都不影响思考框。
             const committedEl = mainSlot.querySelector(".ai-committed");
