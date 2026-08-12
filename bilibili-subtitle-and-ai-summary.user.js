@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站字幕获取与AI总结助手
 // @namespace    https://github.com/tututuhehehe/ai-web-summary
-// @version      1.2.1
+// @version      1.2.2
 // @author       limoon
 // @description  B站 bilibili 视频 番剧 字幕 总结 摘要 AI助手 DeepSeek
 // @description:en  Bilibili video subtitle summary AI assistant (DeepSeek/OpenAI)
@@ -16,6 +16,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_info
+// @run-at       document-start
 // @connect      *
 // @license      MIT
 // @downloadURL  https://update.greasyfork.org/scripts/575450/B%E7%AB%99%E5%AD%97%E5%B9%95%E8%8E%B7%E5%8F%96%E4%B8%8EAI%E5%8A%A9%E6%89%8B%20%28%E6%B2%89%E6%B5%B8%E5%BC%8F%E7%BF%BB%E8%AF%91%E6%80%BB%E7%BB%93%29.user.js
@@ -635,6 +636,15 @@
     script.remove();
   }
   let cachedScriptSubtitleUrls = null;
+  // SPA 导航后失效标志:置位后不再信任首屏 SSR 来源(__INITIAL_STATE__ 等全局变量
+  // 与首屏内联 <script> 里的字幕 URL——它们在 SPA 下不会被移除/更新,会返回上个视频的
+  // 陈旧 URL)。导航后唯一可信来源是 setupNetworkInterception 拦截到的当前视频请求。
+  // 注意:cachedScriptSubtitleUrls 也会被置空,但重扫仍会命中同一个陈旧内联脚本,
+  // 所以 staleSSRSources 必须同时门控脚本扫描本身,见 extractSubtitleUrlsFromScripts。
+  let staleSSRSources = false;
+  // 首屏加载时已存在的 <script> 节点集合;SPA 导航后只扫新出现的 script(新视频可能
+  // 注入新的内嵌字幕 URL),不再重扫首屏那批(它们带着第一个视频的陈旧 URL)。
+  const seenScriptNodes = new WeakSet();
 
   function normalizeSubtitleUrl(raw) {
     if (typeof raw !== "string") return "";
@@ -677,6 +687,9 @@
   function extractSubtitleUrlsFromScripts() {
     const found = [];
     document.querySelectorAll("script").forEach((scriptEl) => {
+      // SPA 失效后跳过记录为已见的首屏 script 节点
+      if (staleSSRSources && seenScriptNodes.has(scriptEl)) return;
+      seenScriptNodes.add(scriptEl); // 记录本次已扫描,下次 SPA 失效扫描时跳过
       const code = scriptEl.textContent;
       if (!code) return;
       if (!code.includes("subtitle") && !code.includes("ai_subtitle")) return;
@@ -697,6 +710,10 @@
     // (即便字幕已在视频里出现,重新点击仍失败)。改为只缓存非空结果:空则下次继续重扫。
     if (!cachedScriptSubtitleUrls || cachedScriptSubtitleUrls.length === 0) {
       cachedScriptSubtitleUrls = extractSubtitleUrlsFromScripts();
+      // extractSubtitleUrlsFromScripts 已在内部把扫描过的 script 节点登记进
+      // seenScriptNodes,SPA 失效后的重扫据此只看新增节点——首屏那批陈旧内联
+      // 脚本被跳过,因此 cachedScriptSubtitleUrls 在 SPA 后只含新增脚本的 URL,
+      // 无需再以 staleSSRSources 二次门控(决策 [1]b:保留新增 script 来源)。
     }
     urls.push(...cachedScriptSubtitleUrls);
 
@@ -707,11 +724,15 @@
     }
 
     // 兜底从 B 站首屏状态对象里递归找 subtitle_url/subtitleUrl 等字段。
-    try {
-      collectSubtitleUrlsFromObject(win.__INITIAL_STATE__, urls);
-      collectSubtitleUrlsFromObject(win.__playinfo__, urls);
-      collectSubtitleUrlsFromObject(win.__NEXT_DATA__, urls);
-    } catch (e) {}
+    // SPA 导航后 staleSSRSources=true,跳过——这些 SSR 全局变量不会随 SPA 更新,
+    // 会返回上个视频的陈旧字幕 URL(带过期 auth_key)。
+    if (!staleSSRSources) {
+      try {
+        collectSubtitleUrlsFromObject(win.__INITIAL_STATE__, urls);
+        collectSubtitleUrlsFromObject(win.__playinfo__, urls);
+        collectSubtitleUrlsFromObject(win.__NEXT_DATA__, urls);
+      } catch (e) {}
+    }
 
     const normalized = urls.map(normalizeSubtitleUrl).filter(Boolean);
     return [...new Set(normalized)].filter((url) => {
@@ -787,7 +808,7 @@
         method: "GET",
         url: url,
         responseType: "json",
-        timeout: 20000,
+        timeout: 8000,
         onload: function (response) {
           if (response.status < 200 || response.status >= 300) {
             reject(new Error(`HTTP ${response.status}`));
@@ -822,6 +843,9 @@
   // 依次尝试所有候选字幕 URL(按 rankSubtitleUrl 从高到低,相同分保持原顺序),
   // 命中第一个能解析出非空字幕正文的地址即返回;全部失败才抛出最后一次错误。
   // 这样即使候选里混入了返回 "ok"/非 JSON 的非正文接口,也能自动跳过,不再随机报错。
+  // 总时长上限 12s + 排序后只取前 12 条候选(_biliSubtitleUrls 上限 80,但绝大多数
+  // 是 report/list/manager/config 等噪声接口,头部 12 条已覆盖 ai_subtitle/.json/auth_key
+  // 的真实正文),避免无字幕视频时逐个尝试 80 条 × 8s 的分钟级"假卡死"。
   async function fetchSubtitleText(options = {}) {
     const rawUrls = getSubtitleUrls();
     if (rawUrls.length === 0) throw new Error("未找到字幕");
@@ -830,17 +854,27 @@
       .map((u, i) => ({ url: normalizeSubtitleUrl(u), i }))
       .filter((x) => x.url)
       .sort((a, b) => rankSubtitleUrl(b.url) - rankSubtitleUrl(a.url) || a.i - b.i)
-      .map((x) => x.url);
+      .map((x) => x.url)
+      .slice(0, 12); // 噪声候选过多且 rankSubtitleUrl 已降权,头部 12 条足够
 
+    const OVERALL_TIMEOUT_MS = 12000; // 总尝试上限,避免分钟级"假卡死"
+    const deadline = Date.now() + OVERALL_TIMEOUT_MS;
     let lastErr = null;
+    let triedCount = 0;
     for (const url of ordered) {
+      if (Date.now() > deadline) {
+        // 已超总上限:剩余候选全部失败,语义化报错(上层据此区分"无字幕"提示)
+        lastErr = new Error(`字幕获取超时(已尝试 ${triedCount} 组候选均不可用,本视频可能无字幕)`);
+        break;
+      }
+      triedCount++;
       try {
         return await fetchSubtitleFromUrl(url, options);
       } catch (e) {
         lastErr = e; // 记录并尝试下一个候选(如返回 "ok"、列表接口无 body 等)
       }
     }
-    throw lastErr || new Error("字幕获取失败");
+    throw lastErr || new Error("字幕获取失败(本视频可能无字幕)");
   }
 
   function handleCopySubtitle() {
@@ -2276,10 +2310,17 @@
       await waitForSubtitleUrls(30, 150); // ~4.5s
       actionCallback();
     } catch (err) {
-      showInfoBar(
-        "未检测到字幕资源,请手动点开一次视频的字幕设置后重试(本视频可能无字幕)",
-        "error",
-      );
+      // 失败反馈:面板已展开则写红色系统气泡(用户能即刻知晓),未展开只用 infoBar,
+      // 不强行弹窗(展开面板本应由用户主动点悬浮球触发,已确立的交互模式)。
+      const aiPanel = document.getElementById("bili-ai-panel");
+      if (aiPanel && !isElHidden(aiPanel)) {
+        const chatContainer = document.getElementById("ai-panel-chat");
+        if (chatContainer) {
+          chatContainer.innerHTML =
+            '<div class="chat-bubble system" style="color:#f5222d;">❌ 未检测到字幕资源,本视频可能没有字幕(也未开启 AI 字幕)。请手动点开一次字幕设置后重试。</div>';
+        }
+      }
+      showInfoBar("未检测到字幕资源,本视频可能无字幕", "error");
     }
   }
 
@@ -2408,52 +2449,56 @@
 
     let lastUrl = location.href;
     window.addEventListener("bili_ai_url_change", () => {
+      // 同步阶段(无 DOM 依赖、无竞态):URL 已更新,立即清空陈旧字幕来源,
+      // 避免播放器在 pushState 后的 50ms 内已发出新视频字幕请求却被随后的
+      // 50ms 延时清空逻辑抹掉。bili_ai_url_change 在 pushState 后同步派发。
+      if (location.href === lastUrl) return;
+      lastUrl = location.href;
+      const isVideoPage =
+        location.href.includes("/video/") ||
+        location.href.includes("/bangumi/play/");
+      if (!isVideoPage) return;
+
+      // 置失效并清空所有陈旧候选(SSR 全局变量 + 首屏内联 script + 网络拦截数组)。
+      // 网络拦截数组清空后,新视频的字幕请求会重新填入。
+      staleSSRSources = true;
+      cachedScriptSubtitleUrls = null;
+      if (
+        typeof unsafeWindow !== "undefined" &&
+        unsafeWindow._biliSubtitleUrls
+      )
+        unsafeWindow._biliSubtitleUrls = [];
+      window._biliSubtitleUrls = [];
+
+      // UI / DOM 重置保留在 50ms 延时里,避免 B 站 SPA 框架尚未替换播放器 DOM。
       setTimeout(() => {
-        // slight delay to let URL update
-        if (location.href !== lastUrl) {
-          lastUrl = location.href;
-          if (
-            location.href.includes("/video/") ||
-            location.href.includes("/bangumi/play/")
-          ) {
-            // Reset cache
-            if (
-              typeof unsafeWindow !== "undefined" &&
-              unsafeWindow._biliSubtitleUrls
-            )
-              unsafeWindow._biliSubtitleUrls = [];
-            window._biliSubtitleUrls = [];
-            cachedScriptSubtitleUrls = null;
+        // 播放器节点可能被换成新视频的,重新绑定字幕按钮 observer
+        if (typeof reattachSubtitleObserver === "function") {
+          reattachSubtitleObserver();
+        }
 
-            // 播放器节点可能被换成新视频的,重新绑定字幕按钮 observer
-            if (typeof reattachSubtitleObserver === "function") {
-              reattachSubtitleObserver();
-            }
+        // Reset state
+        abortCurrentRequest(); // 中断可能正在进行的 AI 请求,避免向旧面板写入及状态卡死
+        currentSubtitle = "";
+        chatHistory = [];
 
-            // Reset state
-            abortCurrentRequest(); // 中断可能正在进行的 AI 请求,避免向旧面板写入及状态卡死
-            currentSubtitle = "";
-            chatHistory = [];
+        // Reset UI
+        const chatContainer = document.getElementById("ai-panel-chat");
+        if (chatContainer) {
+          chatContainer.innerHTML =
+            '<div class="chat-bubble system">准备就绪。</div>';
+          chatContainer.scrollTop = 0;
+        }
+        resetSessionTokens(); // 新视频是新会话,累计清零(须先清零)
+        updateTokenBar(null); // 再重新渲染,此时累计为 0 会正确隐藏
+        updateChatSendButtonState();
 
-            // Reset UI
-            const chatContainer = document.getElementById("ai-panel-chat");
-            if (chatContainer) {
-              chatContainer.innerHTML =
-                '<div class="chat-bubble system">准备就绪。</div>';
-              chatContainer.scrollTop = 0;
-            }
-            resetSessionTokens(); // 新视频是新会话,累计清零(须先清零)
-            updateTokenBar(null); // 再重新渲染,此时累计为 0 会正确隐藏
-            updateChatSendButtonState();
-
-            // 切换视频时若面板未收起,自动收起回侧栏
-            const aiPanel = document.getElementById("bili-ai-panel");
-            const minTab = document.getElementById("bili-ai-minimized");
-            if (aiPanel && minTab && !isElHidden(aiPanel)) {
-              aiPanel.style.display = "none";
-              minTab.style.display = "flex";
-            }
-          }
+        // 切换视频时若面板未收起,自动收起回侧栏
+        const aiPanel = document.getElementById("bili-ai-panel");
+        const minTab = document.getElementById("bili-ai-minimized");
+        if (aiPanel && minTab && !isElHidden(aiPanel)) {
+          aiPanel.style.display = "none";
+          minTab.style.display = "flex";
         }
       }, 50);
     });
@@ -2461,8 +2506,6 @@
 
   function init() {
     addGlobalStyles();
-    setupNetworkInterception();
-    setupSPARouting();
 
     createAIPanel();
     createGlobalObserver();
@@ -2472,6 +2515,14 @@
       "background:#50E3C2;color:#003333;padding:2px 6px;border-radius:0 3px 3px 0;",
     );
   }
+
+  // document-start 时机:网络钩子与 SPA 路由监听必须在 B 站播放器发起任何字幕请求
+  // 之前就位(否则 B 站首屏播放器的初始字幕请求不会被拦截,_biliSubtitleUrls 为空,
+  // 表现为「直开有字幕视频也不点菜单,点总结—有时失败」)。这两个函数只注入 <script>
+  // 并基于 history API,不依赖 <head>/<body> 已就绪(appended to document.documentElement),
+  // 因此提到 IIFE 顶层同步执行。其余依赖 DOM 的 UI 初始化留在 DOMContentLoaded(init)。
+  setupNetworkInterception();
+  setupSPARouting();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
