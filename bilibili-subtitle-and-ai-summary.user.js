@@ -2096,21 +2096,31 @@
     // 键盘快捷键:Esc 打断当前回复;s 唤起/收起 AI 总结(输入状态不触发)
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
+        // 面板已收起:不拦截 Esc,交给浏览器执行原生行为(如退出 Safari 全屏)。
+        // 若仍在生成中则保留原有“Esc 中断生成”行为,但不阻止默认动作。
+        if (isElHidden(panel)) {
+          if (isRequesting) stopCurrentGeneration();
+          return;
+        }
+
+        // 面板展开时,下面任一动作都会“消费”这次 Esc,需 preventDefault,
+        // 避免 Safari 同时退出全屏。
         // 1) 回答中:打断生成
         if (isRequesting) {
+          e.preventDefault();
           stopCurrentGeneration();
           return;
         }
         // 2) 焦点在面板输入框:先取消聚焦
         const chatInput = document.getElementById("ai-chat-textarea");
         if (chatInput && document.activeElement === chatInput) {
+          e.preventDefault();
           chatInput.blur();
           return;
         }
-        // 3) 面板已弹出且未聚焦输入框:收起面板
-        if (!isElHidden(panel)) {
-          collapsePanel();
-        }
+        // 3) 收起面板
+        e.preventDefault();
+        collapsePanel();
         return;
       }
 

@@ -81,10 +81,30 @@
 ## 开发约定
 
 - 原生 JavaScript ES6+，不使用 TypeScript。
-- 不引入 npm、打包器或构建流程。
-- 每个用户脚本保持单文件自包含。
+- 不引入 npm 依赖，不引入打包器。合并脚本 `build.js` 只依赖 Node.js 内置模块。
+- 每个用户脚本最终保持单文件自包含。
 - 第三方库仅通过用户脚本元数据 `@require` 引入：使用 `marked.js` 渲染 Markdown；B 站脚本另引入 `DOMPurify`，在写入 innerHTML 前清洗 AI 输出，防止字幕/模型内容中的 XSS。
 - 新增外部请求能力时，必须在用户脚本元数据中声明相应 `@grant` / `@connect`。
+
+## 模块化开发
+
+`bilibili-subtitle-and-ai-summary.user.js` 是合并产物，请勿直接编辑它。日常修改请编辑 `bili_src/` 下的模块片段，然后运行：
+
+```bash
+node build.js
+```
+
+该脚本会按文件名顺序读取 `bili_src/*.js`，自动合并回根目录的同名 `.user.js` 文件。模块顺序由文件名前缀（`00-`、`01-`…）决定，新增模块时请沿用该命名规则。后续兼容其他网页时，可在 `build.js` 的 `TARGETS` 中新增对应源码目录与输出文件。
+
+## 测试
+
+纯逻辑函数使用 Node 内置测试运行器，无需安装 npm 依赖：
+
+```bash
+node --test tests/pure-functions.test.js
+```
+
+测试通过 `vm` 加载合并后的用户脚本，并对不依赖 DOM / `GM_*` 的纯函数（字幕 URL 归一化与排序、时间格式化、转录裁剪、Prompt 构建、HTML 转义、服务商参数组装等）做单元验证。DOM、网络拦截和 AI 流式部分仍建议在浏览器中手动验证。
 
 ## 许可证
 
