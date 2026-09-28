@@ -1830,7 +1830,8 @@
                 </div>
                 <div id="set-extrabody-row" style="margin: 4px 0 8px 0; display: ${aiConfig.provider === "custom" ? "block" : "none"};">
                     <div style="color: var(--text-mute); font-size: 12px; margin-bottom: 4px;">额外请求参数 extra_body (JSON,可选):</div>
-                    <textarea id="set-extrabody" class="ai-input" style="height: 60px; resize: vertical; margin-bottom: 0; font-family: monospace; font-size: 12px;" placeholder='例如:{"enable_thinking": true} 或 {"reasoning_effort": "high"}'>${escapeHtml(aiConfig.extraBody || "")}</textarea>
+                    <textarea id="set-extrabody" class="ai-input" style="height: 60px; resize: vertical; margin-bottom: 0; font-family: monospace; font-size: 12px;" placeholder='例如:{"enable_thinking": true} 或 {"thinking": {"type": "disabled"}} 或 {"reasoning_effort": "high"}'>${escapeHtml(aiConfig.extraBody || "")}</textarea>
+                    <div style="color: var(--text-faint); font-size: 11px; margin-top: 3px;">关闭思考:通义/硅基流动用 <code>enable_thinking</code>，DeepSeek/Kimi 系用 <code>{"thinking": {"type": "disabled"}}</code>。</div>
                     <div id="set-extrabody-err" style="display:none; color: var(--err, #d9363e); font-size: 11px; margin-top: 4px;"></div>
                 </div>
                 <div style="margin: 0 0 4px 0; color: var(--text-mute);">自定义总结 Prompt:</div>
