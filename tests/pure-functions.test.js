@@ -52,13 +52,13 @@ test("applyThinkingParams: DeepSeek", () => {
 });
 
 test("applyThinkingParams: 自定义服务商合并 extra_body", () => {
-  const payload = { temperature: 0.3 };
+  const payload = { model: "test-model" };
   api.applyThinkingParams(payload, {
     provider: "custom",
     thinking: false,
     extraBody: '{"enable_thinking":true,"top_p":0.9}',
   });
-  assert.equal(payload.temperature, 0.3);
+  assert.equal(payload.model, "test-model"); // 既有字段不被覆盖
   assert.equal(payload.enable_thinking, true);
   assert.equal(payload.top_p, 0.9);
 });

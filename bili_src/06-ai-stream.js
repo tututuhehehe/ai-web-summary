@@ -20,7 +20,6 @@
     const payload = {
       model: selectedModel,
       messages: buildRequestMessages(messages),
-      temperature: 0.3,
       stream: true,
       stream_options: { include_usage: true }, // 请求接口在流末返回 token 用量
     };

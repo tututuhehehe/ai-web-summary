@@ -1010,7 +1010,7 @@
                 <textarea id="set-prompt" class="ai-input" style="height: 54px; resize: vertical;" placeholder="要求 AI 如何进行总结...">${escapeHtml(aiConfig.prompt)}</textarea>
                 
                 <div style="margin: 4px 0 4px 0; color: var(--text-mute);">额外 Body 参数 (JSON 格式, 可选):</div>
-                <textarea id="set-extrabody" class="ai-input" style="height: 40px; resize: vertical; font-family: monospace;" placeholder='例如: {"temperature": 0.7}'>${escapeHtml(aiConfig.extraBody || '')}</textarea>
+                <textarea id="set-extrabody" class="ai-input" style="height: 40px; resize: vertical; font-family: monospace;" placeholder='例如: {"top_p": 0.9}'>${escapeHtml(aiConfig.extraBody || '')}</textarea>
 
                 <button class="ai-chat-send ai-chat-pill" id="ai-save-btn" style="width:100%; margin-top:4px; height: 32px;">保存配置</button>
             </div>
